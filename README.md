@@ -39,6 +39,8 @@ You'll need a Python3 environment either in Windows, macOS, Linux and of course 
 
 Currently only shows two things.
 
+
+
 ## python3 DSKUtilV3 -dh filename.dsk
 
 **Displays the Disk Header**
@@ -63,12 +65,18 @@ Track: 39 > Size - 4608 bytes
 Track: 40 > Unformatted Track
 Track: 41 > Unformatted Track
 
+
+
+
 ## python3 DSKInfoV3.py -ds -ts 17 -te 18 ./TestDisks/XorOriginal.dsk
 
-**-ds** Display Sector Information
-*Optional*
-**-ts** Track Start
-**-te** Track End
+    **-ds** Display Sector Information
+    
+    *Optional*
+    
+    **-ts** Track Start
+
+    **-te** Track End
 
 DSK File Info Utility...
 
