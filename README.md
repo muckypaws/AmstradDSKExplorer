@@ -47,23 +47,23 @@ Currently only shows two things.
 
 DSK File Info Utility...
 
-Processing: ./TestDisks/XorOriginal.dsk
+    Processing: ./TestDisks/XorOriginal.dsk
 
-Start Track: 0
-Valid DSK Header Found
+    Start Track: 0
+    Valid DSK Header Found
 
-          Header: EXTENDED CPC DSK File Disk-Info
+            Header: EXTENDED CPC DSK File Disk-Info
 
-    Creator Name: SAMdisk140324
-Number of Tracks: 42
- Number of Sides: 1
+        Creator Name: SAMdisk140324
+    Number of Tracks: 42
+    Number of Sides: 1
 
-Track: 00 > Size - 4608 bytes
-Track: 01 > Size - 4608 bytes
-...
-Track: 39 > Size - 4608 bytes
-Track: 40 > Unformatted Track
-Track: 41 > Unformatted Track
+    Track: 00 > Size - 4608 bytes
+    Track: 01 > Size - 4608 bytes
+    ...
+    Track: 39 > Size - 4608 bytes
+    Track: 40 > Unformatted Track
+    Track: 41 > Unformatted Track
 
 
 
@@ -82,32 +82,32 @@ DSK File Info Utility...
 
 Processing: ./TestDisks/XorOriginal.dsk
 
-Start Track: 17
-Valid DSK Header Found
+    Start Track: 17
+    Valid DSK Header Found
 
-Sector Information
+    Sector Information
 
 
-Track: 17
- C, H ,  ID,  N, FDC Status
-17, 00, #00, 05, Ok
+    Track: 17
+    C, H ,  ID,  N, FDC Status
+    17, 00, #00, 05, Ok
 
-Track: 18
- C, H ,  ID,  N, FDC Status
-00, 00, #00, 00, Ok
-01, 01, #01, 01, CRC Error *Data Error* 
-02, 02, #02, 02, CRC Error *Data Error* 
-03, 03, #03, 03, CRC Error *Data Error* 
-04, 04, #04, 04, CRC Error *Data Error* 
-05, 05, #05, 05, CRC Error *Data Error* 
-06, 06, #06, 06, CRC Error *Data Error* 
-07, 07, #07, 07, CRC Error *Data Error* 
-08, 08, #08, 08, CRC Error *Data Error* 
-09, 09, #09, 09, CRC Error *Data Error* 
-10, 10, #0a, 10, CRC Error *Data Error* 
-11, 11, #0b, 11, CRC Error *Data Error* 
-12, 12, #0c, 12, CRC Error *Data Error* 
-13, 13, #0d, 13, CRC Error *Data Error* 
-14, 14, #0e, 14, CRC Error *Data Error* 
-15, 15, #0f, 15, CRC Error *Data Error* 
+    Track: 18
+    C, H ,  ID,  N, FDC Status
+    00, 00, #00, 00, Ok
+    01, 01, #01, 01, CRC Error *Data Error* 
+    02, 02, #02, 02, CRC Error *Data Error* 
+    03, 03, #03, 03, CRC Error *Data Error* 
+    04, 04, #04, 04, CRC Error *Data Error* 
+    05, 05, #05, 05, CRC Error *Data Error* 
+    06, 06, #06, 06, CRC Error *Data Error* 
+    07, 07, #07, 07, CRC Error *Data Error* 
+    08, 08, #08, 08, CRC Error *Data Error* 
+    09, 09, #09, 09, CRC Error *Data Error* 
+    10, 10, #0a, 10, CRC Error *Data Error* 
+    11, 11, #0b, 11, CRC Error *Data Error* 
+    12, 12, #0c, 12, CRC Error *Data Error* 
+    13, 13, #0d, 13, CRC Error *Data Error* 
+    14, 14, #0e, 14, CRC Error *Data Error* 
+    15, 15, #0f, 15, CRC Error *Data Error* 
 
