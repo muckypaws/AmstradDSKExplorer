@@ -111,3 +111,33 @@ Processing: ./TestDisks/XorOriginal.dsk
     14, 14, #0e, 14, CRC Error *Data Error* 
     15, 15, #0f, 15, CRC Error *Data Error* 
 
+## python3 DSKInfoV3.py -dir ./TestDisks/XorOriginal.dsk
+
+    Display a list of files encoded on the DSK File.
+
+    DSK File Info Utility...
+
+    Processing: ./TestDisks/DizzyHackTutorialFixed.dsk
+
+    Start Track: 0
+    End Track: 42
+    Valid DSK Header Found
+
+    Disk Format Type: DATA
+
+    Total Files Found: 14
+
+    00:ADAM   .BAS
+    00:ADAM   .BIN
+    00:CHEAT  .BAS
+    00:DIZZYCH.ADM
+    00:GETDEC1.ADM
+    00:GETDEC2.ADM
+    00:GETFIRS.ADM
+    00:GETREGS.ADM
+    00:GETREGS.BIN
+    00:LOADER .ADM
+    00:READSEC.ADM
+    00:RSX    .ADM
+    00:RSX    .BIN
+    00:TODISK .ADM
