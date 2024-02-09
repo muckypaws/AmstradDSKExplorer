@@ -369,6 +369,10 @@ def normaliseFilename(filename):
 
     return normal
 
+#def getFileInfoFromSector():
+    
+
+
 #
 # Attempt to show files stored on DISK
 # Thankfully Directories are on the Same Track and Incremental Sectors
@@ -413,8 +417,20 @@ def DisplayDirectory(head):
                     user = dataToProcess[x*32:(x*32)+1]
                     if user != b'\xe5':
                         offset = (x * 32)+1
-                        filename = f"{user[0]:02d}:" + normaliseFilename( dataToProcess[offset:offset+11] )
-                        FileList += [filename]
+                        filename = normaliseFilename( dataToProcess[offset:offset+11] )
+                        readonly = dataToProcess[offset+8:offset+9]
+                        
+                        #Read-Only Flag Set?
+                        if readonly[0] > 127:
+                            filename += "*"
+                        #System/Hidden Flag Set?
+                        hidden = dataToProcess[offset+9:offset+10]
+                        if hidden[0] > 127:
+                            filename += "+"
+
+                        # Check Valid Name
+                        if filename[0] != " ":
+                            FileList += [f"{user[0]:02d}:"+filename]
         else:
             print(f"Warning, Track Data Not Found For Track: {track}, Head:{head}")
             return 
