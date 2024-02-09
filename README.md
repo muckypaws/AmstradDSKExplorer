@@ -113,8 +113,6 @@ Processing: ./TestDisks/XorOriginal.dsk
 
 ## python3 DSKInfoV3.py -dir ./TestDisks/XorOriginal.dsk
 
-    Display a list of files encoded on the DSK File.
-
     DSK File Info Utility...
 
     Processing: ./TestDisks/DizzyHackTutorialFixed.dsk
@@ -125,19 +123,22 @@ Processing: ./TestDisks/XorOriginal.dsk
 
     Disk Format Type: DATA
 
-    Total Files Found: 14
+    Total Files Found: 17
 
-    00:ADAM   .BAS
-    00:ADAM   .BIN
-    00:CHEAT  .BAS
-    00:DIZZYCH.ADM
-    00:GETDEC1.ADM
-    00:GETDEC2.ADM
-    00:GETFIRS.ADM
-    00:GETREGS.ADM
-    00:GETREGS.BIN
-    00:LOADER .ADM
-    00:READSEC.ADM
-    00:RSX    .ADM
-    00:RSX    .BIN
-    00:TODISK .ADM
+    00:ADAM    .BAS
+    00:ADAM    .BIN
+    00:CHEAT   .BAS
+    00:DIZZYCH .ADM
+    00:GETDEC1 .ADM
+    00:GETDEC1A.ADM
+    00:GETDEC2 .ADM
+    00:GETDEC2A.ADM
+    00:GETDEC2B.ADM
+    00:GETFIRST.ADM
+    00:GETREGS .ADM
+    00:GETREGS .BIN
+    00:LOADER  .ADM
+    00:READSECT.ADM
+    00:RSX     .ADM
+    00:RSX     .BIN
+    00:TODISK  .ADM

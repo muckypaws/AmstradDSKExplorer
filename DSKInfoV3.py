@@ -12,6 +12,10 @@
 #       Any normal language... result = byte1 & Byte2
 #       PYTHON Devs... 
 #           Hold Our Beer... 
+#               result = bytes([a & b for a, b in zip(abytes[::-1], bbytes[::-1])][::-1])
+#       because... that's logical... init? ffs
+#
+#   Did I mention how I'm not enjoying Python right now?
 #
 # V0.02 - 9th February 2024      - A BIT crazy edition.
 #                                  Added code to view directory listing 
@@ -365,6 +369,10 @@ def normaliseFilename(filename):
 
     return normal
 
+#def getFileInfoFromSector():
+    
+
+
 #
 # Attempt to show files stored on DISK
 # Thankfully Directories are on the Same Track and Incremental Sectors
@@ -382,6 +390,9 @@ def DisplayDirectory(head):
     elif DEFAULT_DSK_FORMAT & 2:
         track = 2
         sector = 0x41
+    elif DEFAULT_DSK_FORMAT & 4:
+        track = 1
+        sector = 1
     
     FileList = []
     # Always Side 0
@@ -406,8 +417,20 @@ def DisplayDirectory(head):
                     user = dataToProcess[x*32:(x*32)+1]
                     if user != b'\xe5':
                         offset = (x * 32)+1
-                        filename = f"{user[0]:02d}:" + normaliseFilename( dataToProcess[offset:offset+11] )
-                        FileList += [filename]
+                        filename = normaliseFilename( dataToProcess[offset:offset+11] )
+                        readonly = dataToProcess[offset+8:offset+9]
+                        
+                        #Read-Only Flag Set?
+                        if readonly[0] > 127:
+                            filename += "*"
+                        #System/Hidden Flag Set?
+                        hidden = dataToProcess[offset+9:offset+10]
+                        if hidden[0] > 127:
+                            filename += "+"
+
+                        # Check Valid Name
+                        if filename[0] != " ":
+                            FileList += [f"{user[0]:02d}:"+filename]
         else:
             print(f"Warning, Track Data Not Found For Track: {track}, Head:{head}")
             return 

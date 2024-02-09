@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             //"args": ["-ds","-ts","18","-te","18","./TestDisks/Mermaid.dsk"],
             //"args": ["-dir","./TestDisks/XorOriginal.dsk"],
-            "args": ["-dir","./TestDisks/DizzyHackTutorialFixed.dsk"],
+            "args": ["-dh","-dir","./TestDisks/DizzyHackTutorial.dsk"],
         
         }
     ]
