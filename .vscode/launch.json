@@ -10,7 +10,9 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["-ds","-ts","18","-te","18","./TestDisks/Appleby.dsk"],
+            //"args": ["-ds","-ts","18","-te","18","./TestDisks/Mermaid.dsk"],
+            "args": ["-dir","./TestDisks/Mermaid.dsk"],
+        
         }
     ]
 }

@@ -14,6 +14,7 @@ from datetime import datetime
 DEFAULT_START_TRACK = 0
 DEFAULT_END_TRACK = 42
 DEFAULT_HEAD = 0
+DEFAULT_DSK_FORMAT = 0
 
 DEFAULT_DSK_TYPE = "DATA"
 
@@ -322,6 +323,55 @@ def DisplayDiskHeader():
             else:
                 print(f"Track: {track:02d} > {trackSizeString}")
 
+
+def GetSectorOffset(Track, SectorToFind):
+    offset = -1
+    for sectors in range(Track.numberOfSectors):
+        if Track.sectorTable[(sectors*8)+2] == SectorToFind:
+            offset = sectors
+    return offset
+
+def normaliseFilename(filename):
+    normalName = ""
+    for x in range(len(filename)):
+        normalName1 = filename[x:x+1] & 0x7f
+        
+    return normalName
+#
+# Attempt to show files stored on DISK
+#
+def DisplayDirectory():
+    # Check which File Format
+    if DEFAULT_DSK_FORMAT & 1:
+        track = 0
+        sector = 0xc1
+    elif DEFAULT_DSK_FORMAT & 2:
+        track = 2
+        sector = 0x41
+    
+    # Always Side 0
+    TrackEntry = f"{track:02d}:0"
+    
+    TrackDict = DSKDictionary[TrackEntry]
+    
+    SectorSize = TrackDict.sectorSize * 256
+    
+    offset = GetSectorOffset(TrackDict, sector)
+    
+    if offset >= 0 and offset < TrackDict.numberOfSectors:
+        offset = offset * SectorSize
+        
+        TrackDataToProcess = DSKDataDictionary[TrackEntry]
+        dataToProcess = TrackDataToProcess[offset:offset+SectorSize]
+        
+        for x in range(8):
+            user = dataToProcess[x*32:(x*32)+1]
+            if user != 0xe5:
+                filename = normaliseFilename( dataToProcess[(x*32)+1:(x*32)+12])
+                print(f"{filename}:")
+                
+
+
 #
 # Load DSK File to Memory
 #
@@ -332,6 +382,7 @@ def loadDSKToMemory(filename):
     global DSKSectorDictionary
     global DSKSectorDataDictionary
     global DEFAULT_DSK_TYPE
+    global DEFAULT_DSK_FORMAT
 
     if os.path.isfile(filename):
         try:
@@ -361,7 +412,7 @@ def loadDSKToMemory(filename):
 
                 #
                 # Try processing the DSK information from file.
-                DiskType = 0
+                DEFAULT_DSK_FORMAT = 0
                 if dskHead.numberOfTracks > 0:
                     numberOfSides = DSKDictionary['DiskHeader'].numberOfSides
                     # Parse Number of Tracks 
@@ -392,17 +443,17 @@ def loadDSKToMemory(filename):
                                         sectorData = DSKDictionary[trackString].sectorTable[sector*8:(sector*8)+8]
                                         #print(sectorData , len(sectorData))
                                         if sectorData[2]>=0xc1 and sectorData[2]<=0xc9:
-                                            DiskType |= 1
+                                            DEFAULT_DSK_FORMAT |= 1
                                         if sectorData[2]>=0x41 and sectorData[2]<=0x49:
-                                            DiskType |= 2
+                                            DEFAULT_DSK_FORMAT |= 2
                                         if sectorData[2]>=0x1 and sectorData[2]<=0x8:
-                                            DiskType |= 4
+                                            DEFAULT_DSK_FORMAT |= 4
                                         x += 8
-                if DiskType == 1:
+                if DEFAULT_DSK_FORMAT == 1:
                     DEFAULT_DSK_TYPE="DATA"
-                elif DiskType == 2:
+                elif DEFAULT_DSK_FORMAT == 2:
                     DEFAULT_DSK_TYPE = "SYSTEM"
-                elif DiskType == 4:
+                elif DEFAULT_DSK_FORMAT == 4:
                     DEFAULT_DSK_TYPE = "IBM"
                 else:
                     DEFAULT_DSK_TYPE = "Proprietary"
@@ -430,6 +481,7 @@ if __name__ == "__main__":
     parser.add_argument("-dh","--displayHeader", help="Display Disk Header Information", action="store_true",default=False)
     parser.add_argument("-ds","--displaySector", help="Display Sector Information", action="store_true",default=False)
 
+    parser.add_argument("-dir","--directory", help="Display Directory Information", action="store_true",default=False)
 
     args = parser.parse_args()
 
@@ -448,4 +500,7 @@ if __name__ == "__main__":
 
     if args.displaySector:
         DisplaySectorInfo(args.trackStart, args.trackEnd)
+        
+    if args.directory:
+        DisplayDirectory()
 
