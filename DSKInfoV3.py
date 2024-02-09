@@ -12,7 +12,7 @@
 #       Any normal language... result = byte1 & Byte2
 #       PYTHON Devs... 
 #           Hold Our Beer... 
-#               reult = bytes([a & b for a, b in zip(abytes[::-1], bbytes[::-1])][::-1])
+#               result = bytes([a & b for a, b in zip(abytes[::-1], bbytes[::-1])][::-1])
 #       because... that's logical... init? ffs
 #
 #   Did I mention how I'm not enjoying Python right now?
@@ -387,7 +387,7 @@ def DisplayDirectory(head):
         track = 2
         sector = 0x41
     elif DEFAULT_DSK_FORMAT & 4:
-        track = 0
+        track = 1
         sector = 1
     
     FileList = []
