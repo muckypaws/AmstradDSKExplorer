@@ -15,6 +15,8 @@ DEFAULT_START_TRACK = 0
 DEFAULT_END_TRACK = 42
 DEFAULT_HEAD = 0
 
+DEFAULT_DSK_TYPE = "DATA"
+
 DSKDictionary = {}
 DSKDataDictionary = {}
 DSKSectorDictionary = {}
@@ -329,6 +331,7 @@ def loadDSKToMemory(filename):
     global DSKDataDictionary
     global DSKSectorDictionary
     global DSKSectorDataDictionary
+    global DEFAULT_DSK_TYPE
 
     if os.path.isfile(filename):
         try:
@@ -358,6 +361,7 @@ def loadDSKToMemory(filename):
 
                 #
                 # Try processing the DSK information from file.
+                DiskType = 0
                 if dskHead.numberOfTracks > 0:
                     numberOfSides = DSKDictionary['DiskHeader'].numberOfSides
                     # Parse Number of Tracks 
@@ -385,13 +389,25 @@ def loadDSKToMemory(filename):
                                 if sectorCount > 0:
                                     x = 0
                                     for sector in range(sectorCount):
-                                        sectorData = DSKDictionary[trackString].sectorTable[x:x+8]
+                                        sectorData = DSKDictionary[trackString].sectorTable[sector*8:(sector*8)+8]
                                         #print(sectorData , len(sectorData))
+                                        if sectorData[2]>=0xc1 and sectorData[2]<=0xc9:
+                                            DiskType |= 1
+                                        if sectorData[2]>=0x41 and sectorData[2]<=0x49:
+                                            DiskType |= 2
+                                        if sectorData[2]>=0x1 and sectorData[2]<=0x8:
+                                            DiskType |= 4
                                         x += 8
-
-
-
-                DSKDictionary['FirstTrackInfo']=DSKDictionary['00:0']
+                if DiskType == 1:
+                    DEFAULT_DSK_TYPE="DATA"
+                elif DiskType == 2:
+                    DEFAULT_DSK_TYPE = "SYSTEM"
+                elif DiskType == 4:
+                    DEFAULT_DSK_TYPE = "IBM"
+                else:
+                    DEFAULT_DSK_TYPE = "Proprietary"
+                                       
+                print(f"Disk Format Type: {DEFAULT_DSK_TYPE}\n")
 
         except Exception as error:
             print(f"Failed to open DSK File: {filename}")
