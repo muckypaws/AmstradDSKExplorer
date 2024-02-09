@@ -3,6 +3,19 @@
 # Created by Jason Brooks: www.muckypaws.com and www.muckypawslabs.com
 #            7th Febraury 2024
 #
+# There's much that can be done to optimise the code
+#   Python Coders have to be clinically insane... 
+#       I mean seriously... 
+#       how difficult does it have to be to perform bitwise operations
+#       On Bytes?
+#       Apparently F**king difficult...
+#       Any normal language... result = byte1 & Byte2
+#       PYTHON Devs... 
+#           Hold Our Beer... 
+#
+# V0.02 - 9th February 2024      - A BIT crazy edition.
+#                                  Added code to view directory listing 
+#                                  on DSK Files.
 
 import argparse
 import os
@@ -14,6 +27,7 @@ from datetime import datetime
 DEFAULT_START_TRACK = 0
 DEFAULT_END_TRACK = 42
 DEFAULT_HEAD = 0
+DEFAULT_DSK_FORMAT = 0
 
 DEFAULT_DSK_TYPE = "DATA"
 
@@ -322,6 +336,91 @@ def DisplayDiskHeader():
             else:
                 print(f"Track: {track:02d} > {trackSizeString}")
 
+
+def GetSectorOffset(Track, SectorToFind):
+    offset = -1
+    for sectors in range(Track.numberOfSectors):
+        if Track.sectorTable[(sectors*8)+2] == SectorToFind:
+            offset = sectors
+    return offset
+
+
+#
+# Taken from StackOverflow: 
+# https://stackoverflow.com/questions/22593822/doing-a-bitwise-operation-on-bytes
+#
+def andbytes(abytes, bbytes):
+    return bytes([a & b for a, b in zip(abytes[::-1], bbytes[::-1])][::-1])
+
+#
+# Normalise the Filename
+#
+def normaliseFilename(filename):
+    # Iterate over Filename
+    # Bit 7 Indicates Special Features.
+
+    result=andbytes(filename,b'\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f')
+
+    normal=result[0:8].decode() + "." + result[8:11].decode()
+
+    return normal
+
+#
+# Attempt to show files stored on DISK
+# Thankfully Directories are on the Same Track and Incremental Sectors
+#
+def DisplayDirectory(head):
+
+    if not DEFAULT_DSK_FORMAT:
+        print("Error: Default Disk Directory Format Undetected")
+        return
+    
+    # Check which File Format
+    if DEFAULT_DSK_FORMAT & 1:
+        track = 0
+        sector = 0xc1
+    elif DEFAULT_DSK_FORMAT & 2:
+        track = 2
+        sector = 0x41
+    
+    FileList = []
+    # Always Side 0
+    for sectorsToSearch in range(4):
+
+        TrackEntry = f"{track:02d}:{head:01d}"
+        
+        if TrackEntry in DSKDictionary.keys():
+            TrackDict = DSKDictionary[TrackEntry]
+            
+            SectorSize = TrackDict.sectorSize * 256
+            
+            offset = GetSectorOffset(TrackDict, sector)
+            
+            if offset >= 0 and offset < TrackDict.numberOfSectors:
+                offset = offset * SectorSize
+                
+                TrackDataToProcess = DSKDataDictionary[TrackEntry]
+                dataToProcess = TrackDataToProcess[offset:offset+SectorSize]
+
+                for x in range(16):
+                    user = dataToProcess[x*32:(x*32)+1]
+                    if user != b'\xe5':
+                        offset = (x * 32)+1
+                        filename = f"{user[0]:02d}:" + normaliseFilename( dataToProcess[offset:offset+11] )
+                        FileList += [filename]
+        else:
+            print(f"Warning, Track Data Not Found For Track: {track}, Head:{head}")
+            return 
+        # Move to next Sector
+        sector = sector + 1
+
+    # De Dupe and Sort
+    FileList = sorted(set(FileList))
+
+    print(f"Total Files Found: {len(FileList)}\n")
+    for filename in FileList:
+        print(filename)
+                
 #
 # Load DSK File to Memory
 #
@@ -332,6 +431,7 @@ def loadDSKToMemory(filename):
     global DSKSectorDictionary
     global DSKSectorDataDictionary
     global DEFAULT_DSK_TYPE
+    global DEFAULT_DSK_FORMAT
 
     if os.path.isfile(filename):
         try:
@@ -361,7 +461,7 @@ def loadDSKToMemory(filename):
 
                 #
                 # Try processing the DSK information from file.
-                DiskType = 0
+                DEFAULT_DSK_FORMAT = 0
                 if dskHead.numberOfTracks > 0:
                     numberOfSides = DSKDictionary['DiskHeader'].numberOfSides
                     # Parse Number of Tracks 
@@ -392,17 +492,17 @@ def loadDSKToMemory(filename):
                                         sectorData = DSKDictionary[trackString].sectorTable[sector*8:(sector*8)+8]
                                         #print(sectorData , len(sectorData))
                                         if sectorData[2]>=0xc1 and sectorData[2]<=0xc9:
-                                            DiskType |= 1
+                                            DEFAULT_DSK_FORMAT |= 1
                                         if sectorData[2]>=0x41 and sectorData[2]<=0x49:
-                                            DiskType |= 2
+                                            DEFAULT_DSK_FORMAT |= 2
                                         if sectorData[2]>=0x1 and sectorData[2]<=0x8:
-                                            DiskType |= 4
+                                            DEFAULT_DSK_FORMAT |= 4
                                         x += 8
-                if DiskType == 1:
+                if DEFAULT_DSK_FORMAT == 1:
                     DEFAULT_DSK_TYPE="DATA"
-                elif DiskType == 2:
+                elif DEFAULT_DSK_FORMAT == 2:
                     DEFAULT_DSK_TYPE = "SYSTEM"
-                elif DiskType == 4:
+                elif DEFAULT_DSK_FORMAT == 4:
                     DEFAULT_DSK_TYPE = "IBM"
                 else:
                     DEFAULT_DSK_TYPE = "Proprietary"
@@ -425,13 +525,19 @@ if __name__ == "__main__":
 
     # Optional Parameters
     parser.add_argument("-ts","--trackStart", help="Start Track to View", type=int, default=0)
-    parser.add_argument("-te","--trackEnd", help="End Track to View", type=int, default=99)
+    parser.add_argument("-te","--trackEnd", help="End Track to View", type=int, default=42)
 
     parser.add_argument("-dh","--displayHeader", help="Display Disk Header Information", action="store_true",default=False)
     parser.add_argument("-ds","--displaySector", help="Display Sector Information", action="store_true",default=False)
 
+    parser.add_argument("-dir","--directory", help="Display Directory Information", action="store_true",default=False)
 
     args = parser.parse_args()
+
+    # Check file actually exists before we start...
+    if not os.path.isfile(args.filename):
+        print(f"\nInvalid Filename, Can't find it: {args.filename}\n")
+        exit(0)
 
     DEFAULT_START_TRACK = args.trackStart
 
@@ -439,6 +545,7 @@ if __name__ == "__main__":
     print("DSK File Info Utility...\n")
     print(f"Processing: {args.filename}\n")
     print(f"Start Track: {DEFAULT_START_TRACK}")
+    print(f"  End Track: {DEFAULT_END_TRACK}")
 
     # Load the File to Memory and Pre-Process it
     loadDSKToMemory(args.filename)
@@ -448,4 +555,7 @@ if __name__ == "__main__":
 
     if args.displaySector:
         DisplaySectorInfo(args.trackStart, args.trackEnd)
+        
+    if args.directory:
+        DisplayDirectory(0)
 
