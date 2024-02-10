@@ -339,6 +339,13 @@ def DisplayDiskHeader(verbose):
             else:
                 trackSizeString = "Unformatted Track"
 
+            trackString = f"{track:02d}:{trackside:01d}"
+
+            if trackString in DSKDictionary:
+                sectors = DSKDictionary[trackString].numberOfSectors
+                trackSizeString += f", {sectors} Sectors"
+            
+
             if numberOfSides > 1:
                 print(f"Track: {track:02d} Side[{trackside}] - {trackSizeString}")
             else:

@@ -58,10 +58,10 @@ DSK File Info Utility...
     Number of Tracks: 42
     Number of Sides: 1
 
-    Track: 00 > Size - 4608 bytes
-    Track: 01 > Size - 4608 bytes
+    Track: 00 > Size - 4608 bytes, 9 Sectors
+    Track: 01 > Size - 4608 bytes, 9 Sectors
     ...
-    Track: 39 > Size - 4608 bytes
+    Track: 39 > Size - 4608 bytes, 9 Sectors
     Track: 40 > Unformatted Track
     Track: 41 > Unformatted Track
 
