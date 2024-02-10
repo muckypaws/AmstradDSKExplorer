@@ -418,6 +418,8 @@ def DisplayDirectory(head, detail):
     FileList = []
     FileListExpanded = []
     
+    # The initial sector for start of Track
+    initialSector = sector
     # Always Side 0
     for sectorsToSearch in range(4):
 
@@ -471,7 +473,7 @@ def DisplayDirectory(head, detail):
                                     cluster = int(dataToProcess[offset+15:offset+16][0])
                                     cluster *= 2
                                     ClusterTrack = int((cluster / TrackDict.numberOfSectors ) + track) 
-                                    ClusterSector = (cluster % TrackDict.numberOfSectors) + sector
+                                    ClusterSector = (cluster % TrackDict.numberOfSectors) + initialSector
                                     filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
                                     fileDetails = [f"{user[0]:02d}:" +filename +f"  \t{filetype} \t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
                                     #print(fileDetails)
