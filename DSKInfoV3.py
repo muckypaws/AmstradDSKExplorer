@@ -479,10 +479,14 @@ def DisplayDirectory(head, detail):
                         #Read-Only Flag Set?
                         if readonly[0] > 127:
                             filename += "*"
+                        else:
+                            filename += " "
                         #System/Hidden Flag Set?
                         hidden = dataToProcess[offset+9:offset+10]
                         if hidden[0] > 127:
                             filename += "+"
+                        else:
+                            filename += " "
 
                         # Check First Directory Entry
                         # Extent Byte should be 00
@@ -502,7 +506,7 @@ def DisplayDirectory(head, detail):
                                     ClusterTrack = int((cluster / TrackDict.numberOfSectors ) + track) 
                                     ClusterSector = (cluster % TrackDict.numberOfSectors) + initialSector
                                     filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
-                                    fileDetails = [f"{user[0]:02d}:" +filename +f"    \t{filetype} \t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
+                                    fileDetails = [f"{user[0]:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
                                     #print(fileDetails)
                                     #FileList += [f"{user[0]:02d}:"+filename]
                                     FileListExpanded += fileDetails
@@ -568,9 +572,18 @@ def loadDSKToMemory(filename, verbose):
                     validHeader == "MV - CPCEMU Disk-File\r\nDisk-Info\r\n":
                     if verbose:
                         print("Valid DSK Header Found\n")
+                elif validHeader[:11] == "MV - CPCEMU":
+                    if verbose:
+                        print(f"Legacy File Header Discovered: {validHeader}")
                 else:
                     print(f"Invalid DSK Header Detected: {validHeader}\n")
                     exit(0)
+                
+                
+                # Check Old Version for Track Info Size
+                legacy = 0
+                if validHeader != "EXTENDED CPC DSK File\r\nDisk-Info\r\n":
+                    legacy = 1
 
                 #
                 # Try processing the DSK information from file.
@@ -581,7 +594,10 @@ def loadDSKToMemory(filename, verbose):
                     for track in range (DSKDictionary['DiskHeader'].numberOfTracks):
                         # Parse Number of Sides
                         for trackside in range(numberOfSides):
-                            tracksize = DSKDictionary['DiskHeader'].trackSizeTable[track] * 256
+                            if not legacy:
+                                tracksize = DSKDictionary['DiskHeader'].trackSizeTable[track] * 256
+                            else:
+                                tracksize = DSKDictionary['DiskHeader'].oldTrackSize
                             # Check the track is formatted with data.
 
                             if tracksize > 0:
@@ -679,7 +695,9 @@ if __name__ == "__main__":
     DEFAULT_START_TRACK = args.trackStart
 
     # Start up Message
-    print("DSK File Info Utility...\n")
+    print("\n")
+    print("-"*80)
+    print("DSK File Info Utility... www.muckypaws.com\n")
     print(f"Processing: {args.filename}\n")
     
     if args.verbose:
