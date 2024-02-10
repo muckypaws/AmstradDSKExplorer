@@ -29,6 +29,7 @@ import argparse
 import os
 import sys
 import struct
+import string 
 
 from datetime import datetime
 
@@ -374,15 +375,29 @@ def normaliseFilename(filename):
     # Iterate over Filename
     # Bit 7 Indicates Special Features.
 
-    result=andbytes(filename,b'\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f')
+    test = bytearray()
+    for x in range(len(filename)):
+        if filename[x] >= ord(' '):
+            test.append(filename[x])
+        else:
+            test.append(0)
+
+
+    result=andbytes(test,b'\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f')
 
     normal=result[0:8].decode() + "." + result[8:11].decode()
+
 
     return normal
 
 def getFileInfo(track, sector, head):
     TrackEntry = f"{track:02d}:{head:01d}"
-        
+    
+    fileType = b'\x00'
+    fileStart = 0
+    filelen = 0
+    fileexec = 0
+
     if TrackEntry in DSKDictionary.keys():
         TrackDict = DSKDictionary[TrackEntry]
         
@@ -392,12 +407,17 @@ def getFileInfo(track, sector, head):
             offset = offset * 512
             
             TrackDataToProcess = DSKDataDictionary[TrackEntry]
-            dataToProcess = TrackDataToProcess[offset:offset+64]
-            
-            fileType = dataToProcess[18:19]
-            fileStart = int.from_bytes(dataToProcess[21:23],"little")
-            filelen = int.from_bytes(dataToProcess[24:26],"little")
-            fileexec = int.from_bytes(dataToProcess[26:28],"little")
+
+            if len(TrackDataToProcess) >= (offset+64):
+                dataToProcess = TrackDataToProcess[offset:offset+64]
+                
+                fileType = dataToProcess[18:19]
+                fileStart = int.from_bytes(dataToProcess[21:23],"little")
+                filelen = int.from_bytes(dataToProcess[24:26],"little")
+                fileexec = int.from_bytes(dataToProcess[26:28],"little")
+            else:
+                print("Warning, Possible Corrupt Disk Detected")
+                print(f"Track Bytes: {len(TrackDataToProcess)} is less than sector pointer - {offset+64}")
     
     return fileType[0],fileStart, filelen, fileexec
 
@@ -471,7 +491,7 @@ def DisplayDirectory(head, detail):
                         
                         if extents == b'\x00':
                             # Check Valid Name
-                            if filename[0] != " ":
+                            if filename[0] > " ":
                                 entry = f"{user[0]:02d}:"+filename
                                 if entry not in FileList:
                                     # Add File to List 
@@ -482,7 +502,7 @@ def DisplayDirectory(head, detail):
                                     ClusterTrack = int((cluster / TrackDict.numberOfSectors ) + track) 
                                     ClusterSector = (cluster % TrackDict.numberOfSectors) + initialSector
                                     filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
-                                    fileDetails = [f"{user[0]:02d}:" +filename +f"  \t{filetype} \t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
+                                    fileDetails = [f"{user[0]:02d}:" +filename +f"    \t{filetype} \t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
                                     #print(fileDetails)
                                     #FileList += [f"{user[0]:02d}:"+filename]
                                     FileListExpanded += fileDetails
@@ -497,16 +517,20 @@ def DisplayDirectory(head, detail):
     FileList = sorted(set(FileList))
     FileListExpanded = sorted(set(FileListExpanded))
     
-    print(f"Total Files Found: {len(FileList)}\n")
-    
-    if not detail:
-        for filename in FileList:
-            print(filename)
+
+    if len(FileList) == 0:
+        print("No files Found, Possible Blank Disk Detected")
     else:
-        print(" U:Filename    RH  \tType\tStart\tLength\tExec")
-        print("-"*53)
-        for filename in FileListExpanded:
-            print(filename)
+        print(f"Total Files Found: {len(FileList)}\n")
+        
+        if not detail:
+            for filename in FileList:
+                print(filename)
+        else:
+            print(" U:Filename    RH  \tType\tStart\tLength\tExec")
+            print("-"*53)
+            for filename in FileListExpanded:
+                print(filename)
         
                 
 #
@@ -559,6 +583,7 @@ def loadDSKToMemory(filename, verbose):
                         for trackside in range(numberOfSides):
                             tracksize = DSKDictionary['DiskHeader'].trackSizeTable[track] * 256
                             # Check the track is formatted with data.
+
                             if tracksize > 0:
                                 trackString = f"{track:02d}:{trackside:01d}"
                                 DSKDictionary[trackString] = TrackInformationBlock(file.read(256))
@@ -574,6 +599,10 @@ def loadDSKToMemory(filename, verbose):
 
                                 # Break out Sector Data
                                 sectorCount = DSKDictionary[trackString].numberOfSectors
+
+                                # Jacelock would fake/misreport the number of Sectors on a Track
+                                if sectorCount > 28:
+                                    sectorCount = 28
 
                                 if sectorCount > 0:
                                     x = 0
@@ -630,6 +659,21 @@ if __name__ == "__main__":
     # Check file actually exists before we start...
     if not os.path.isfile(args.filename):
         print(f"\nInvalid Filename, Can't find it: {args.filename}\n")
+        exit(0)
+
+    # Check File Size is multiples of 256 bytes
+    size = os.path.getsize(args.filename)
+    if size % 256:
+        print(f"\n\n***Not a valid DSK File: Must be multiples of 256 Bytes: Size = {size}***")
+
+    # Situations for Corrupt DSK files that just contain a header, nothing more
+    # I.e. totally unformatted disks
+    if size == 256:
+        print(f"\n\n*** Sorry, this disk is not formatted ***\n\n")
+        exit(0)
+
+    if size <= 1024:
+        print(f"\n\n*** Unknown formatted disk, quitting... ***\n\n")
         exit(0)
 
     DEFAULT_START_TRACK = args.trackStart
