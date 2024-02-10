@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             //"args": ["-ds","-ts","18","-te","18","./TestDisks/Mermaid.dsk"],
             //"args": ["-dir","./TestDisks/XorOriginal.dsk"],
-            "args": ["-dir","-d","./TestDisks/Misc Group Demos 108A (PD).dsk"],
+            "args": ["-dir","-d","./TestDisks/Demon PD Library S010 - Fractals (UK) (1991) (PD).dsk"],
         
         }
     ]

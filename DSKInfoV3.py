@@ -29,7 +29,7 @@ import argparse
 import os
 import sys
 import struct
-import string 
+import datetime 
 
 from datetime import datetime
 
@@ -355,7 +355,13 @@ def DisplayDiskHeader(verbose):
 
 def GetSectorOffset(Track, SectorToFind):
     offset = -1
-    for sectors in range(Track.numberOfSectors):
+
+    maxSectors = Track.numberOfSectors
+    if maxSectors > 29:
+        maxSectors = 29
+        print(f"Corrupt number of Sectors Detected in Track: {Track.TrackNumber}, Reporting - {Track.numberOfSectors}")
+
+    for sectors in range(maxSectors):
         if Track.sectorTable[(sectors*8)+2] == SectorToFind:
             offset = sectors
     return offset
@@ -471,7 +477,7 @@ def DisplayDirectory(head, detail):
                     
                     # Technically should validate 0-15 as those were valid, some protection
                     # systems would modify this byte to prevent user intervention
-                    if user != b'\xe5':
+                    if user != b'\xe5' and dataToProcess[(x*32)+1:(x*32)+2] > b' ':
                         offset = (x * 32)+1
                         filename = normaliseFilename( dataToProcess[offset:offset+11] )
                         readonly = dataToProcess[offset+8:offset+9]
@@ -552,6 +558,8 @@ def loadDSKToMemory(filename, verbose):
     if os.path.isfile(filename):
         try:
             with open(filename, mode="rb") as file:
+
+                totalFileSize = os.path.getsize(filename)
                 # Process the first 256 Bytes - Disk Header Information
                 dskHead = DSKHeader(file.read(256))
                 DSKDictionary['DiskHeader']=dskHead
@@ -600,17 +608,23 @@ def loadDSKToMemory(filename, verbose):
                                 tracksize = DSKDictionary['DiskHeader'].oldTrackSize
                             # Check the track is formatted with data.
 
-                            if tracksize > 0:
+                            # Some Legacy Files Report 40 Tracks when only the relevant ones
+                            # Were encoded... So we need to check... 
+                            bytesRemaining = file.tell()
+
+                            #if track == 23:
+                            #    print("Here")
+                            if tracksize > 0 and (bytesRemaining+tracksize)<=totalFileSize:
                                 trackString = f"{track:02d}:{trackside:01d}"
                                 DSKDictionary[trackString] = TrackInformationBlock(file.read(256))
                                 DSKDataDictionary[trackString] = (file.read(tracksize-256))
 
                                 # Check Track-Info is Correctly Set
-                                validHeader = DSKDictionary[trackString].header.decode()
-
-                                if validHeader != "Track-Info\r\n":
+                                # Some Legacy Disks appear to be corrupt
+                                if DSKDictionary[trackString].header[:10] != b'Track-Info':
                                     print(f"Invalid Track Header Detected at Track: {track} - data = {validHeader}\n")
-                                    exit(0)
+                                    #exit(0)
+                                    return 
 
 
                                 # Break out Sector Data
@@ -632,6 +646,9 @@ def loadDSKToMemory(filename, verbose):
                                         if sectorData[2]>=0x1 and sectorData[2]<=0x8:
                                             DEFAULT_DSK_FORMAT |= 4
                                         x += 8
+                            else:
+                                print(f"Possible Corruption, Insufficient date from Track: {track}")
+                # Set Disk Type Flags
                 if DEFAULT_DSK_FORMAT == 1:
                     DEFAULT_DSK_TYPE = "DATA"
                 elif DEFAULT_DSK_FORMAT == 2:
@@ -672,6 +689,22 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    
+
+    DEFAULT_START_TRACK = args.trackStart
+    DEFAULT_END_TRACK = args.trackEnd
+
+    # Start up Message
+    print("\n")
+    print("-"*80)
+    print("DSK File Info Utility... www.muckypaws.com\n")
+
+    now = datetime.now()
+    print(now.strftime("Program Run: %Y-%m-%d %H:%M:%S"))
+    print("-"*80)
+
+    print(f"\nProcessing: {args.filename}\n")
+
     # Check file actually exists before we start...
     if not os.path.isfile(args.filename):
         print(f"\nInvalid Filename, Can't find it: {args.filename}\n")
@@ -691,14 +724,6 @@ if __name__ == "__main__":
     if size <= 1024:
         print(f"\n\n*** Unknown formatted disk, quitting... ***\n\n")
         exit(0)
-
-    DEFAULT_START_TRACK = args.trackStart
-
-    # Start up Message
-    print("\n")
-    print("-"*80)
-    print("DSK File Info Utility... www.muckypaws.com\n")
-    print(f"Processing: {args.filename}\n")
     
     if args.verbose:
         print(f"Start Track: {DEFAULT_START_TRACK}")
