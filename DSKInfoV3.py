@@ -17,14 +17,21 @@
 #
 #   Did I mention how I'm not enjoying Python right now?
 #
-# V0.02 - 9th February 2024      - A BIT crazy edition.
+# V0.02 - 9th February 2024      - A BIT crazy Edition.
 #                                  Added code to view directory listing 
 #                                  on DSK Files.
-# V0.02 - 10th February 2024     - A Getting Head edition.
+# V0.02 - 10th February 2024     - Getting Head Edition.
 #                                  Getting File Information 
 #                                  Load Address, Length and Execution +
 #                                  Filetype
-
+# V0.03 - 10th February 2024     - Bourne Legacy Edition.
+#                                  Running tests against 11,000 disks from the community 
+#                                  highlighted inconsistencies with file formats
+#                                  Circa 1997, in addition to a number of corrupt disks 
+#                                  Encoded in the domain.
+#                                  Added more processing to detect these anomalies
+#                                  Report and handle more gracefully.
+#
 import argparse
 import os
 import sys
