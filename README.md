@@ -142,3 +142,30 @@ Processing: ./TestDisks/XorOriginal.dsk
     00:RSX     .ADM
     00:RSX     .BIN
     00:TODISK  .ADM
+
+
+## python3 DSKInfoV3.py -dir -d ./TestDisks/TheySoldAMillion_SideA.dsk 
+
+Detailed View of the Files in the DSK image, now displaying File Type, Start Address, File Size, Execution Address.
+
+    * means ReadOnly
+    + means System/Hidden File
+
+    DSK File Info Utility...
+
+    Processing: ./TestDisks/TheySoldAMillion_SideA.dsk
+
+    Disk Format Type: SYSTEM
+
+    Total Files Found: 8
+
+    U:Filename    RH       Type    Start   Length  Exec
+    -----------------------------------------------------
+    00:AAAA    .BIN*+       2       #0040   #029F   #0040
+    00:BEACH   .SBF*+       2       #8000   #0100   #0000
+    00:BPART1  .SBF*+       2       #2100   #7B2A   #0000
+    00:BPART2  .SBF*+       2       #2100   #3800   #0000
+    00:DALEY   .SBF*+       2       #8000   #003C   #0000
+    00:DALEYCDE.SBF*+       2       #0428   #99C0   #0000
+    00:MENU    .BIN         2       #3ECE   #011B   #3ECE
+    00:TITLEA  .SAD*+       2       #35B5   #22EC   #0000

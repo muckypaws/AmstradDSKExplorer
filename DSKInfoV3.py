@@ -20,6 +20,10 @@
 # V0.02 - 9th February 2024      - A BIT crazy edition.
 #                                  Added code to view directory listing 
 #                                  on DSK Files.
+# V0.02 - 10th February 2024     - A Getting Head edition.
+#                                  Getting File Information 
+#                                  Load Address, Length and Execution +
+#                                  Filetype
 
 import argparse
 import os
@@ -305,16 +309,16 @@ def DisplaySectorInfo(StartTrack, EndTrack):
             track.TrackNumber <= EndTrack:
 
             print(f"\nTrack: {track.TrackNumber:02d}")
-            print(" C, H ,  ID,  N, FDC Status")
+            print(" C,  H,  ID,  N, FDC Status")
 
             for sectors in range(track.numberOfSectors):
                 trackNum, side, sectorID, sectorSize, FDCStatus = GetSectorDataFromTrackByPosition(track, sectors )
-                print(f"{trackNum:02d}, {side:02d}, #{sectorID:02x}, {sectorSize:02d}, {FDCStatus}")
+                print(f"{trackNum:02d}, {side:02d}, #{sectorID:02X}, {sectorSize:02d}, {FDCStatus}")
 
 #
 # Print the Disk Header Information
 #
-def DisplayDiskHeader():
+def DisplayDiskHeader(verbose):
     global DSKDictionary
 
     print(f"          Header: {DSKDictionary['DiskHeader'].header.decode()}")
@@ -369,15 +373,32 @@ def normaliseFilename(filename):
 
     return normal
 
-#def getFileInfoFromSector():
+def getFileInfo(track, sector, head):
+    TrackEntry = f"{track:02d}:{head:01d}"
+        
+    if TrackEntry in DSKDictionary.keys():
+        TrackDict = DSKDictionary[TrackEntry]
+        
+        offset = GetSectorOffset(TrackDict, sector)
+        
+        if offset >= 0 and offset < TrackDict.numberOfSectors:
+            offset = offset * 512
+            
+            TrackDataToProcess = DSKDataDictionary[TrackEntry]
+            dataToProcess = TrackDataToProcess[offset:offset+64]
+            
+            fileType = dataToProcess[18:19]
+            fileStart = int.from_bytes(dataToProcess[21:23],"little")
+            filelen = int.from_bytes(dataToProcess[24:26],"little")
+            fileexec = int.from_bytes(dataToProcess[26:28],"little")
     
-
+    return fileType[0],fileStart, filelen, fileexec
 
 #
 # Attempt to show files stored on DISK
 # Thankfully Directories are on the Same Track and Incremental Sectors
 #
-def DisplayDirectory(head):
+def DisplayDirectory(head, detail):
 
     if not DEFAULT_DSK_FORMAT:
         print("Error: Default Disk Directory Format Undetected")
@@ -395,6 +416,8 @@ def DisplayDirectory(head):
         sector = 1
     
     FileList = []
+    FileListExpanded = []
+    
     # Always Side 0
     for sectorsToSearch in range(4):
 
@@ -414,7 +437,11 @@ def DisplayDirectory(head):
                 dataToProcess = TrackDataToProcess[offset:offset+SectorSize]
 
                 for x in range(16):
+                    # Get the CPM User Number 
                     user = dataToProcess[x*32:(x*32)+1]
+                    
+                    # Technically should validate 0-15 as those were valid, some protection
+                    # systems would modify this byte to prevent user intervention
                     if user != b'\xe5':
                         offset = (x * 32)+1
                         filename = normaliseFilename( dataToProcess[offset:offset+11] )
@@ -428,9 +455,29 @@ def DisplayDirectory(head):
                         if hidden[0] > 127:
                             filename += "+"
 
-                        # Check Valid Name
-                        if filename[0] != " ":
-                            FileList += [f"{user[0]:02d}:"+filename]
+                        # Check First Directory Entry
+                        # Extent Byte should be 00
+                        #     >0 Related entry to the primary file.
+                        extents = dataToProcess[offset+11:offset+12]
+                        
+                        if extents == b'\x00':
+                            # Check Valid Name
+                            if filename[0] != " ":
+                                entry = f"{user[0]:02d}:"+filename
+                                if entry not in FileList:
+                                    # Add File to List 
+                                    FileList += [entry]
+                                    # Get first Cluster ID where File Stored
+                                    cluster = int(dataToProcess[offset+15:offset+16][0])
+                                    cluster *= 2
+                                    ClusterTrack = int((cluster / TrackDict.numberOfSectors ) + track) 
+                                    ClusterSector = (cluster % TrackDict.numberOfSectors) + sector
+                                    filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
+                                    fileDetails = [f"{user[0]:02d}:" +filename +f"  \t{filetype} \t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
+                                    #print(fileDetails)
+                                    #FileList += [f"{user[0]:02d}:"+filename]
+                                    FileListExpanded += fileDetails
+
         else:
             print(f"Warning, Track Data Not Found For Track: {track}, Head:{head}")
             return 
@@ -439,15 +486,24 @@ def DisplayDirectory(head):
 
     # De Dupe and Sort
     FileList = sorted(set(FileList))
-
+    FileListExpanded = sorted(set(FileListExpanded))
+    
     print(f"Total Files Found: {len(FileList)}\n")
-    for filename in FileList:
-        print(filename)
+    
+    if not detail:
+        for filename in FileList:
+            print(filename)
+    else:
+        print(" U:Filename    RH  \tType\tStart\tLength\tExec")
+        print("-"*53)
+        for filename in FileListExpanded:
+            print(filename)
+        
                 
 #
 # Load DSK File to Memory
 #
-def loadDSKToMemory(filename):
+def loadDSKToMemory(filename, verbose):
     global DSKDictionary
     global DSKHEAD
     global DSKDataDictionary
@@ -477,7 +533,8 @@ def loadDSKToMemory(filename):
 
                 if validHeader == "EXTENDED CPC DSK File\r\nDisk-Info\r\n" or \
                     validHeader == "MV - CPCEMU Disk-File\r\nDisk-Info\r\n":
-                    print("Valid DSK Header Found\n")
+                    if verbose:
+                        print("Valid DSK Header Found\n")
                 else:
                     print(f"Invalid DSK Header Detected: {validHeader}\n")
                     exit(0)
@@ -522,7 +579,7 @@ def loadDSKToMemory(filename):
                                             DEFAULT_DSK_FORMAT |= 4
                                         x += 8
                 if DEFAULT_DSK_FORMAT == 1:
-                    DEFAULT_DSK_TYPE="DATA"
+                    DEFAULT_DSK_TYPE = "DATA"
                 elif DEFAULT_DSK_FORMAT == 2:
                     DEFAULT_DSK_TYPE = "SYSTEM"
                 elif DEFAULT_DSK_FORMAT == 4:
@@ -554,6 +611,10 @@ if __name__ == "__main__":
     parser.add_argument("-ds","--displaySector", help="Display Sector Information", action="store_true",default=False)
 
     parser.add_argument("-dir","--directory", help="Display Directory Information", action="store_true",default=False)
+    parser.add_argument("-s","--side", help="Select Drive Head (0:1)", type=int, default=0)
+
+    parser.add_argument("-v","--verbose", help="Show Startup Parameters", action="store_true",default=False)
+    parser.add_argument("-d","--detail", help="Show File Information", action="store_true",default=False)
 
     args = parser.parse_args()
 
@@ -567,18 +628,21 @@ if __name__ == "__main__":
     # Start up Message
     print("DSK File Info Utility...\n")
     print(f"Processing: {args.filename}\n")
-    print(f"Start Track: {DEFAULT_START_TRACK}")
-    print(f"  End Track: {DEFAULT_END_TRACK}")
+    
+    if args.verbose:
+        print(f"Start Track: {DEFAULT_START_TRACK}")
+        print(f"  End Track: {DEFAULT_END_TRACK}")
+        print(f"       Head: {args.side}")
 
     # Load the File to Memory and Pre-Process it
-    loadDSKToMemory(args.filename)
+    loadDSKToMemory(args.filename, args.verbose)
 
     if args.displayHeader:
-        DisplayDiskHeader()
+        DisplayDiskHeader(args.verbose)
 
     if args.displaySector:
         DisplaySectorInfo(args.trackStart, args.trackEnd)
         
     if args.directory:
-        DisplayDirectory(0)
+        DisplayDirectory(args.side, args.detail)
 
