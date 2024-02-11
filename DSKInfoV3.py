@@ -376,11 +376,11 @@ def DisplaySectorInfo(StartTrack, EndTrack):
     for tracks in trackDict:
 
         track = DSKDictionary[tracks]
-        print(f"GAP3: #{track.gap3:02X}, Filler Byte: #{track.filler:02X}")
         if track.TrackNumber >= StartTrack and \
             track.TrackNumber <= EndTrack:
-
-            print(f"\nTrack: {track.TrackNumber:02d}")
+            print()
+            print("*"*80)
+            print(f"\nTrack: {track.TrackNumber:02d}, GAP3: #{track.gap3:02X}, Filler Byte: #{track.filler:02X}\n")
             print(" C,  H,  ID,  N, FDC Status")
 
             for sectors in range(track.numberOfSectors):
@@ -618,6 +618,8 @@ def DisplayDirectory(head, detail):
     FileListExpanded = sorted(set(FileListExpanded))
     
 
+    print()
+    print("*"*80)
     if len(FileList) == 0:
         print("No files Found, Possible Blank Disk Detected")
     else:
