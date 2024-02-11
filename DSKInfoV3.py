@@ -376,6 +376,7 @@ def DisplaySectorInfo(StartTrack, EndTrack):
     for tracks in trackDict:
 
         track = DSKDictionary[tracks]
+        print(f"GAP3: #{track.gap3:02X}, Filler Byte: #{track.filler:02X}")
         if track.TrackNumber >= StartTrack and \
             track.TrackNumber <= EndTrack:
 
