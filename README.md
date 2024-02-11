@@ -37,8 +37,24 @@ How to use it?
 
 You'll need a Python3 environment either in Windows, macOS, Linux and of course access to DSK Files.
 
-Currently only shows two things.
+Currently supports the following :-
 
+    Amstrad CPC DSK File format as defined: 
+        https://www.cpcwiki.eu/index.php/Format:DSK_disk_image_file_format
+
+    ZX Spectrum +3DOS File Information defined:
+        https://area51.dev/sinclair/spectrum/3dos/fileheader/
+
+Commands :-
+
+    -dir            = Directory Listing
+    -d              = Combined with -dir for enhanced file information
+    -dh             = Show the Disk Header Information
+    -ds             = Show Track Sector Information
+    -ts             = Starting Track (Default 0)
+    -te             = Track End (Default 42)
+    -s              = Side (0 = Head 0, 1 = Head 1) Default Head 0
+    -v              = Verbose
 
 
 ## python3 DSKUtilV3 -dh filename.dsk
@@ -159,7 +175,7 @@ Detailed View of the Files in the DSK image, now displaying File Type, Start Add
 
     Total Files Found: 8
 
-    U:Filename    RH       Type    Start   Length  Exec
+    U:Filename     RH      Type     Start   Length  Exec
     -----------------------------------------------------
     00:AAAA    .BIN*+       2       #0040   #029F   #0040
     00:BEACH   .SBF*+       2       #8000   #0100   #0000
@@ -169,3 +185,52 @@ Detailed View of the Files in the DSK image, now displaying File Type, Start Add
     00:DALEYCDE.SBF*+       2       #0428   #99C0   #0000
     00:MENU    .BIN         2       #3ECE   #011B   #3ECE
     00:TITLEA  .SAD*+       2       #35B5   #22EC   #0000
+
+
+## ZX Spectrum Plus3DOS
+
+File information is different here,
+
+File Type of 0 = BASIC Program
+
+    Start Address = Line Number to Run
+    Start = #8000 = Don't Auto Start
+    
+    For File Type 0 - BASIC, Param 1 is either the line number 
+        to start execution or 0x8000 for none. Param 2 is the 
+        offset of variables. For most purposes this can be the 
+        length of the program so no variables.
+
+    For File Type 3 - CODE, 
+        Param 1 is the load address. 
+        Param 2 is unused
+
+
+    --------------------------------------------------------------------------------
+    DSK File Info Utility... www.muckypaws.com
+
+    Program Run: 2024-02-11 17:04:36
+    --------------------------------------------------------------------------------
+
+    Processing: ./Midnight Resistance/Midnight Resistance (1990)(Erbe)(+3)(ES)(en)[re-release].dsk
+
+    Possible Corruption, Insufficient data from Track: 32
+
+    Disk Format Type: IBM
+
+    Total Files Found: 10
+
+    *** PLUS3DOS File System Detected ***
+
+    U:Filename    RH  	Type	Start	Length	Param2
+    -----------------------------------------------------
+    00:BANK0   .         	3	#C000 	#4000 	#8000
+    00:BANK1   .         	3	#C000 	#4000 	#8000
+    00:BANK3   .         	3	#C000 	#4000 	#8038
+    00:BANK4   .         	3	#C000 	#4000 	#8038
+    00:BANK6   .         	3	#C000 	#4000 	#8038
+    00:BANK7   .         	3	#C000 	#4000 	#8038
+    00:DISK    .         	0	#0001 	#003C 	#003C
+    00:LOADER  .         	3	#B800 	#06E8 	#8000
+    00:MC      .         	3	#7000 	#5000 	#8040
+    00:SCREEN  .         	3	#8A00 	#1B00 	#0000
