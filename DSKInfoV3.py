@@ -31,7 +31,19 @@
 #                                  Encoded in the domain.
 #                                  Added more processing to detect these anomalies
 #                                  Report and handle more gracefully.
-#
+# V0.04 - 11th February 2024     - Clive Mobile Edition
+#                                  So how much extra effort was required to include
+#                                  PLUS3DOS support for the ZX Spectrum Format Disks?
+#                                  Not much it seems.
+#                                  Produce a list of files, with Load Address, Param 1
+#                                  Param2 info.  
+#                                  Still experimental...  
+'''
+    Want to run this tool over multiple files?
+    linux use: 
+        #!/bin/bash
+    find . -name "*.dsk" -type f  -exec python3 DSKInfoV3.py -dir -d  {} \; > FileInfoList.txt
+'''
 import argparse
 import os
 import sys
@@ -40,12 +52,18 @@ import datetime
 
 from datetime import datetime
 
+CONST_AMSTRAD       = 0
+CONST_PLUS3DOS    = 1
+
 DEFAULT_START_TRACK = 0
 DEFAULT_END_TRACK = 42
 DEFAULT_HEAD = 0
 DEFAULT_DSK_FORMAT = 0
 
 DEFAULT_DSK_TYPE = "DATA"
+
+DEFAULT_SYSTEM      = CONST_AMSTRAD
+GLOBAL_CORRUPTION_FLAG = 0
 
 DSKDictionary = {}
 DSKDataDictionary = {}
@@ -68,6 +86,12 @@ class SizedRecord:
         sz_bytes = f.read(sz_nbytes)
         sz, = struct.unpack(size_fmt, sz_bytes)
         buf = f.read(sz - includes_size * sz_nbytes) 
+        return cls(buf)
+    
+    def from_buffer(cls, source, offset: int = ...): 
+        sz_nbytes = struct.calcsize(source)
+        sz, = struct.unpack(source, sz_nbytes)
+        buf = sz - includes_size * sz_nbytes
         return cls(buf)
     
     def iter_as(self, code):
@@ -165,8 +189,8 @@ class DSKHeader(Structure):
     _fields_ = [
         ('<34s','header'), 		
         ('<14s','creator'),
-        ('b','numberOfTracks'),
-        ('b','numberOfSides'),
+        ('B','numberOfTracks'),
+        ('B','numberOfSides'),
         ('h','oldTrackSize'),
         ('<204s','trackSizeTable')
     ]
@@ -176,12 +200,12 @@ class DSKHeader(Structure):
 #
 class SectorInformationBlock(Structure):
     _fields_ = [
-        ('b','Track'),
-        ('b','Side'),
-        ('b','SectorID'),
-        ('b','SectorSize'),
-        ('b','FDC1'),
-        ('b','FDC2'),
+        ('B','Track'),
+        ('B','Side'),
+        ('B','SectorID'),
+        ('B','SectorSize'),
+        ('B','FDC1'),
+        ('B','FDC2'),
         ('h','notused')
     ]
 
@@ -192,15 +216,54 @@ class TrackInformationBlock(Structure):
     _fields_ = [
         ('<12s','header'),
         ('<4s','unused'),
-        ('b','TrackNumber'),
-        ('b','TrackSide'),
+        ('B','TrackNumber'),
+        ('B','TrackSide'),
         ('h','unused2'),
-        ('b','sectorSize'),
-        ('b','numberOfSectors'),
-        ('b','gap3'),
-        ('b','filler'),
+        ('B','sectorSize'),
+        ('B','numberOfSectors'),
+        ('B','gap3'),
+        ('B','filler'),
         #(SectorInformationBlock,'sectorTable[29]')
         ('<232s','sectorTable')
+    ]
+
+#
+# Define the PLUS3DOS Header
+#
+class Plus3DOSHeader(Structure):
+    _fields_ = [
+        ('<8s','header'),
+        ('B','SoftEOF'),
+        ('B','Issue'),
+        ('B','Version'),
+        ('<L','TotalFileLen'),
+        ('B','FileType'),
+        ('<H','Filelen'),
+        ('<H','Param1'),
+        ('<H','Param2'),
+        ('B','Unused'),
+        #(SectorInformationBlock,'sectorTable[29]')
+        ('<104s','Reserved'),
+        ('B','Checksum'),
+    ]
+
+#
+# Define the PLUS3DOS Header
+#
+class AmstradFileHeader(Structure):
+    _fields_ = [
+        ('B', 'User'),
+        ('<11s', 'Filename'),
+        ('<4s', 'Filler'),
+        ('B','BlockNumber'),
+        ('B','LastBlock'),
+        ('B','FileType'),            
+        ('<H','FileSize'),
+        ('<H','FileLoad'),
+        ('B','FirstBlock'),
+        ('<H','LogicalLength'),
+        ('<H','EntryAddress'),
+        ('<36s','Reserved'),
     ]
 
 #
@@ -265,13 +328,13 @@ def GetSectorDataFromTrackByPosition(TrackDict, SectorPosition):
     if SectorPosition > TrackDict.numberOfSectors:
         return -1, -1, -1, -1, -1, -1, -1
     
-    sector = table[(SectorPosition*8):(SectorPosition*8)+8]
-    track = sector[0]
-    side = sector[1]
-    sectorID = sector[2]
-    sectorSize = sector[3]
-    FDC1 = sector[4]
-    FDC2 = sector[5]
+    SectorInfo = SectorInformationBlock(table[(SectorPosition*8):(SectorPosition*8)+8])
+    track = SectorInfo.Track
+    side = SectorInfo.Side
+    sectorID = SectorInfo.SectorID
+    sectorSize = SectorInfo.SectorSize
+    FDC1 = SectorInfo.FDC1
+    FDC2 = SectorInfo.FDC2
 
     FDCStatus = GetFDCStatusText(FDC1, FDC2)
 
@@ -281,23 +344,23 @@ def GetSectorDataFromTrackByPosition(TrackDict, SectorPosition):
 # Get Sector information from Sector Table from TrackID, ie:"07:0" by position (0-numberOfSectors)
 #
 def GetSectorDataFromSectorTablePosition(TrackID, SectorPosition):
-    
+
     table = DSKDictionary[TrackID].sectorTable
 
     if SectorPosition > DSKDictionary[TrackID].numberOfSectors:
         return -1, -1, -1, -1, -1, -1, -1
     
-    sector = table[(SectorPosition*8):(SectorPosition*8)+8]
-    track = sector[0]
-    side = sector[1]
-    sectorID = sector[2]
-    sectorSize = sector[3]
-    FDC1 = sector[4]
-    FDC2 = sector[5]
+    SectorInfo = SectorInformationBlock(table[(SectorPosition*8):(SectorPosition*8)+8])
+    track = SectorInfo.Track
+    side = SectorInfo.Side
+    sectorID = SectorInfo.SectorID
+    sectorSize = SectorInfo.SectorSize
+    FDC1 = SectorInfo.FDC1
+    FDC2 = SectorInfo.FDC2
 
     FDCStatus = GetFDCStatusText(FDC1, FDC2)
 
-    return track, side, sectorID, sectorSize, FDCStatus 
+    return track, side, sectorID, sectorSize, FDCStatus
 
 
 #
@@ -315,8 +378,9 @@ def DisplaySectorInfo(StartTrack, EndTrack):
         track = DSKDictionary[tracks]
         if track.TrackNumber >= StartTrack and \
             track.TrackNumber <= EndTrack:
-
-            print(f"\nTrack: {track.TrackNumber:02d}")
+            print()
+            print("*"*80)
+            print(f"\nTrack: {track.TrackNumber:02d}, GAP3: #{track.gap3:02X}, Filler Byte: #{track.filler:02X}\n")
             print(" C,  H,  ID,  N, FDC Status")
 
             for sectors in range(track.numberOfSectors):
@@ -404,6 +468,9 @@ def normaliseFilename(filename):
     return normal
 
 def getFileInfo(track, sector, head):
+    global DEFAULT_SYSTEM
+    global GLOBAL_CORRUPTION_FLAG
+
     TrackEntry = f"{track:02d}:{head:01d}"
     
     fileType = b'\x00'
@@ -424,15 +491,31 @@ def getFileInfo(track, sector, head):
             if len(TrackDataToProcess) >= (offset+64):
                 dataToProcess = TrackDataToProcess[offset:offset+64]
                 
-                fileType = dataToProcess[18:19]
-                fileStart = int.from_bytes(dataToProcess[21:23],"little")
-                filelen = int.from_bytes(dataToProcess[24:26],"little")
-                fileexec = int.from_bytes(dataToProcess[26:28],"little")
+                if dataToProcess[:8] != b'PLUS3DOS':
+                    FileInfoHeader = AmstradFileHeader(dataToProcess[:64])
+                    fileType = int(FileInfoHeader.FileType)
+                    fileStart = FileInfoHeader.FileLoad
+                    filelen = FileInfoHeader.LogicalLength
+                    fileexec = FileInfoHeader.EntryAddress
+                    
+                else:
+                    # Experimental, Process +3DOS Info
+                    # Reference : https://area51.dev/sinclair/spectrum/3dos/fileheader/
+                    DEFAULT_SYSTEM = CONST_PLUS3DOS
+                                        
+                    FileInfoHeader = Plus3DOSHeader(dataToProcess)
+                    fileType = FileInfoHeader.FileType
+                    filelen = FileInfoHeader.Filelen
+                    fileStart = FileInfoHeader.Param1
+                    fileexec = FileInfoHeader.Param2
+
             else:
-                print("Warning, Possible Corrupt Disk Detected")
-                print(f"Track Bytes: {len(TrackDataToProcess)} is less than sector pointer - {offset+64}")
+                if GLOBAL_CORRUPTION_FLAG == 0:
+                    GLOBAL_CORRUPTION_FLAG = 1
+                    print("Warning, Possible Corrupt Disk Detected")
+                    print(f"Track Bytes: {len(TrackDataToProcess)} is less than sector pointer - {offset+64}")
     
-    return fileType[0],fileStart, filelen, fileexec
+    return fileType,fileStart, filelen, fileexec
 
 #
 # Attempt to show files stored on DISK
@@ -535,17 +618,27 @@ def DisplayDirectory(head, detail):
     FileListExpanded = sorted(set(FileListExpanded))
     
 
+    print()
+    print("*"*80)
     if len(FileList) == 0:
         print("No files Found, Possible Blank Disk Detected")
     else:
         print(f"Total Files Found: {len(FileList)}\n")
         
+        if DEFAULT_SYSTEM == CONST_PLUS3DOS:
+            print("*** PLUS3DOS File System Detected ***\n")
+
         if not detail:
             for filename in FileList:
                 print(filename)
         else:
-            print(" U:Filename    RH  \tType\tStart\tLength\tExec")
-            print("-"*53)
+            if DEFAULT_SYSTEM == CONST_AMSTRAD:
+                print(" U:Filename    RH  \tType\tStart\tLength\tExec")
+                print("-"*53)
+            else:
+                print(" U:Filename    RH  \tType\tStart\tLength\tParam2")
+                print("-"*53)
+
             for filename in FileListExpanded:
                 print(filename)
         
@@ -561,6 +654,7 @@ def loadDSKToMemory(filename, verbose):
     global DSKSectorDataDictionary
     global DEFAULT_DSK_TYPE
     global DEFAULT_DSK_FORMAT
+    global GLOBAL_CORRUPTION_FLAG
 
     if os.path.isfile(filename):
         try:
@@ -629,7 +723,7 @@ def loadDSKToMemory(filename, verbose):
                                 # Check Track-Info is Correctly Set
                                 # Some Legacy Disks appear to be corrupt
                                 if DSKDictionary[trackString].header[:10] != b'Track-Info':
-                                    print(f"Invalid Track Header Detected at Track: {track} - data = {validHeader}\n")
+                                    print(f"Invalid Track Header Detected at Track: {track} - data = {DSKDictionary[trackString].header[:10]}\n")
                                     #exit(0)
                                     return 
 
@@ -654,7 +748,10 @@ def loadDSKToMemory(filename, verbose):
                                             DEFAULT_DSK_FORMAT |= 4
                                         x += 8
                             else:
-                                print(f"Possible Corruption, Insufficient date from Track: {track}")
+                                if GLOBAL_CORRUPTION_FLAG == 0:
+                                    GLOBAL_CORRUPTION_FLAG = 1
+                                    print(f"Possible Corruption, Insufficient data from Track: {track}")
+
                 # Set Disk Type Flags
                 if DEFAULT_DSK_FORMAT == 1:
                     DEFAULT_DSK_TYPE = "DATA"
@@ -665,7 +762,7 @@ def loadDSKToMemory(filename, verbose):
                 else:
                     DEFAULT_DSK_TYPE = "Proprietary"
                                        
-                print(f"Disk Format Type: {DEFAULT_DSK_TYPE}\n")
+                print(f"\nDisk Format Type: {DEFAULT_DSK_TYPE}\n")
 
         except Exception as error:
             print(f"Failed to open DSK File: {filename}")
