@@ -41,6 +41,10 @@
 # V0.04 - 11th February 2024     - Dulux Edition
 #                                  Bit of code tidy up.
 #                                  and add some terminal colour too.
+# V0.04 - 13th February 2024     - Into the Format
+#                                  Added new parameters to create New DSK Images.
+#                                  Support for Amstrad CPC DATA, Vendor, IBM
+#                                              ZX Spectrum +3 Standard Disk
 
 '''
     Want to run this tool over multiple files?
@@ -52,8 +56,6 @@ import argparse
 import os
 import sys
 import struct
-import datetime
-
 from datetime import datetime
 
 CEND      = '\33[0m'
@@ -102,6 +104,11 @@ CWHITEBG2  = '\33[107m'
 
 CONST_AMSTRAD       = 0
 CONST_PLUS3DOS      = 1
+
+CONST_DATA_FORMAT       = 0
+CONST_VENDOR_FORMAT     = 1
+CONST_IBM_FORMAT        = 2
+CONST_IBM_ZXSPECTRUM    = 3
 
 DEFAULT_START_TRACK = 0
 DEFAULT_END_TRACK   = 42
@@ -270,7 +277,6 @@ class TrackInformationBlock(Structure):
         ('B','numberOfSectors'),
         ('B','gap3'),
         ('B','filler'),
-        #(SectorInformationBlock,'sectorTable[29]')
         ('<232s','sectorTable')
     ]
 
@@ -389,16 +395,8 @@ def GetSectorDataFromTrackByPosition(TrackDict, SectorPosition):
         return -1, -1, -1, -1, -1, -1, -1
 
     SectorInfo = SectorInformationBlock(table[(SectorPosition*8):(SectorPosition*8)+8])
-    '''
-    track = SectorInfo.Track
-    side = SectorInfo.Side
-    sectorID = SectorInfo.SectorID
-    sectorSize = SectorInfo.SectorSize
-    FDC1 = SectorInfo.FDC1
-    FDC2 = SectorInfo.FDC2
 
-    FDCStatus = GetFDCStatusText(FDC1, FDC2)
-    '''
+
 
     return SectorInfo.Track, SectorInfo.Side, SectorInfo.SectorID, SectorInfo.SectorSize, GetFDCStatusText(SectorInfo.FDC1, SectorInfo.FDC2)
 
@@ -414,16 +412,6 @@ def GetSectorDataFromSectorTablePosition(TrackID, SectorPosition):
         return -1, -1, -1, -1, -1, -1, -1
 
     SectorInfo = SectorInformationBlock(table[(SectorPosition*8):(SectorPosition*8)+8])
-    '''
-    track = SectorInfo.Track
-    side = SectorInfo.Side
-    sectorID = SectorInfo.SectorID
-    sectorSize = SectorInfo.SectorSize
-    FDC1 = SectorInfo.FDC1
-    FDC2 = SectorInfo.FDC2
-
-    FDCStatus = GetFDCStatusText(FDC1, FDC2)
-    '''
 
     return SectorInfo.Track, SectorInfo.Side, SectorInfo.SectorID, SectorInfo.SectorSize, GetFDCStatusText(SectorInfo.FDC1, SectorInfo.FDC2)
 
@@ -629,17 +617,17 @@ def DisplayDirectory(head, detail):
 
                 for x in range(16):
                     # Get File Record Info
-                    FileRecord = CPM22DirectoryEntry(dataToProcess[x*CPM22DirectoryEntry.struct_size:
+                    DirectoryRecord = CPM22DirectoryEntry(dataToProcess[x*CPM22DirectoryEntry.struct_size:
                                                                    (x*CPM22DirectoryEntry.struct_size)+
                                                                    CPM22DirectoryEntry.struct_size])
 
                     # Technically should validate 0-15 as those were valid, some protection
                     # systems would modify this byte to prevent user intervention
-                    if FileRecord.User != 0xe5 and \
-                        FileRecord.Filename[0] > 32:
-                        filename = normaliseFilename( FileRecord.Filename)
-                        readonly = FileRecord.Filename[8] & 0x80
-                        hidden = FileRecord.Filename[9] & 0x80
+                    if DirectoryRecord.User != 0xe5 and \
+                        DirectoryRecord.Filename[0] > 32:
+                        filename = normaliseFilename( DirectoryRecord.Filename)
+                        readonly = DirectoryRecord.Filename[8] & 0x80
+                        hidden = DirectoryRecord.Filename[9] & 0x80
 
                         #Read-Only Flag Set?
                         if readonly:
@@ -657,10 +645,10 @@ def DisplayDirectory(head, detail):
                         # Extent Byte should be 00
                         #     >0 Related entry to the primary file.
 
-                        if FileRecord.Extent == 0:
+                        if DirectoryRecord.Extent == 0:
                             # Check Valid Name
                             if filename[0] > " ":
-                                entry = f"{FileRecord.User:02d}:"+filename
+                                entry = f"{DirectoryRecord.User:02d}:"+filename
                                 if entry not in FileList:
                                     # Add File to List 
                                     FileList += [entry]
@@ -668,11 +656,11 @@ def DisplayDirectory(head, detail):
                                     # This contains the Actual File Header Info 
                                     # Stored at that Track and Sector
                                     # Each Cluster is 1K or 2 Sectors.
-                                    cluster = int(FileRecord.Allocation[0]) * 2
+                                    cluster = int(DirectoryRecord.Allocation[0]) * 2
                                     ClusterTrack = int((cluster / TrackDict.numberOfSectors ) + track)
                                     ClusterSector = (cluster % TrackDict.numberOfSectors) + initialSector
                                     filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
-                                    fileDetails = [f"{FileRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
+                                    fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
                                     # Add Enhanced File Details to List
                                     FileListExpanded += fileDetails
 
@@ -831,12 +819,159 @@ def loadDSKToMemory(filename, verbose):
                     # Protection Systems Mixed and Matched Sectors
                     DEFAULT_DSK_TYPE = "Proprietary"
 
-                print(f"\nDisk Format Type: {DEFAULT_DSK_TYPE}\n")
+                print(f"\nDisk Format Type: {DEFAULT_DSK_TYPE}, appears to be Valid.\n")
 
         except Exception as error:
             print(f"Failed to open DSK File: {filename}")
             print(f"Error: {error}")
             sys.exit(0)
+
+
+def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
+    '''Create a Blank Disk File Image for use in an Emulator or GOTEK etc.'''
+    global CONST_DATA_FORMAT
+    global CONST_IBM_FORMAT
+    global CONST_VENDOR_FORMAT
+
+
+    # Check if File Exists
+    if os.path.isfile(FilenameToWrite):
+        print(f"\nFile Already Exists: {CGREEN}{FilenameToWrite}{CWHITE}")
+        print(f"DSK Image {CRED}NOT{CWHITE} Created.\n")
+        return
+
+    # Used to create the initial Struct
+    fakeHeader = b'\x00' * 256
+
+    error = 0
+
+    if sides < 1 or sides > 2:
+        print(f"\n Invalid Number of Sides, Valid values are 1, or 2, you asked for{CRED} {sides} {CWHITE}\n")
+        error = 1
+    
+    if tracks < 1 or tracks > 82:
+        print(f"Minimum Tracks = 1, Maximum Tracks = 82, you asked for:{CRED} {tracks} {CWHITE}")
+        error = 1
+
+    if format == CONST_DATA_FORMAT:
+            InitialSectorID = b'\xc1\xc6\xc2\xc7\xc3\xc8\xc4\xc9\xc5'
+            TotalSectors = 9
+            ftype = "DATA"
+    elif format == CONST_VENDOR_FORMAT:
+            InitialSectorID = b'\x41\x46\x42\x47\x43\x48\x44\x49\x45'
+            TotalSectors = 9
+            ftype = "VENDOR"
+    elif format == CONST_IBM_FORMAT:
+            InitialSectorID = b'\x01\x05\x02\x06\x03\x07\x04\x08'
+            TotalSectors = 8
+            ftype = "IBM"
+    elif format == CONST_IBM_ZXSPECTRUM:
+            InitialSectorID = b'\x01\x06\x02\x07\x03\x08\x04\x09\x05'
+            TotalSectors = 9
+            ftype = "IBM"
+    else:
+        print(f"Unknown Format Selected, received: {CRED}{format}{CWHITE}\n")
+        print("Supported Formated are :\n")
+        print("\t0 - DATA Format (Default)")
+        print("\t1 - VENDOR Format")
+        print("\t2 - IBM Format\n")
+        print("\t3 - ZX Spectrum IBM Format\n")
+        error = 1
+
+    if error:
+        print(f"{CRED}Operation Aborted...{CWHITE}")
+        sys.exit(0)
+            
+    print(f"Disk Format: {CGREEN}{ftype}{CWHITE}")
+    print(f" Disk Sides: {CGREEN}{sides}{CWHITE}")
+    print(f"     Tracks: {CGREEN}{tracks}{CWHITE}\n")
+    # Create a structure.  Technically, we could just write all this to disk...
+    # But... I may want to create a DSK in memory to inject files at a later
+    # date.
+
+    DiskHeader = DSKHeader(fakeHeader)
+    DiskHeader.header = "EXTENDED CPC DSK File\r\nDisk-Info\r\n"
+    DiskHeader.creator = "muckypaws.com "
+    DiskHeader.numberOfTracks = tracks
+    DiskHeader.numberOfSides = sides
+
+    trackTable  = b'\x13' * tracks * sides
+    if format == CONST_IBM_FORMAT:
+        trackTable  = b'\x11' * tracks * sides
+    trackTable2 = b'\x00' * (204 - (tracks * sides))
+    finalTrackTable = trackTable + trackTable2
+    DiskHeader.trackSizeTable = finalTrackTable[:204]
+
+
+    TrackInfo = TrackInformationBlock(b'\0'*TrackInformationBlock.struct_size)
+
+    TrackInfo.header = b'Track-Info\r\n'
+    TrackInfo.numberOfSectors = TotalSectors
+    TrackInfo.sectorSize = b'\x02'
+    TrackInfo.filler = b'\xe5'
+    TrackInfo.gap3 = b'\x4e'
+    TrackInfo.unused2 = b'\x00\x00'
+
+    # Interleved Sectors List
+
+
+    try:
+        with open(FilenameToWrite, mode="wb") as file:
+            
+            # Write the Main DSK Header
+            file.write(DiskHeader.header.encode())
+            file.write(DiskHeader.creator.encode())
+            file.write(int.to_bytes(DiskHeader.numberOfTracks,1,'little'))
+            file.write(int.to_bytes(DiskHeader.numberOfSides,1,'little'))
+            file.write(int.to_bytes(DiskHeader.oldTrackSize,2,'little'))
+            file.write(DiskHeader.trackSizeTable)
+
+            #track = b'\x00'
+            # Now write out Blank Track Information
+            for track in range(tracks):
+                for side in range(sides):
+                    SectorDetail = b''
+                    side = int.to_bytes(side,1,'little')
+                    TrackInfo.TrackNumber = int.to_bytes(track,1,'little')
+                    TrackInfo.TrackSide = side
+
+                    for count in range(TotalSectors):
+                        SectorDetail += TrackInfo.TrackNumber + \
+                                        TrackInfo.TrackSide + \
+                                        InitialSectorID[count:count+1] + \
+                                        b'\x02\x00\x00\x00\x00'
+
+                        sectorBlank = b'\x00' * (232 - (TotalSectors * sides))
+                        finalSectorTable = SectorDetail + sectorBlank
+
+                    TrackInfo.sectorTable = finalSectorTable[:232]
+
+                    file.write(TrackInfo.header)
+                    file.write(TrackInfo.unused)
+                    file.write(TrackInfo.TrackNumber)
+                    file.write(TrackInfo.TrackSide)
+                    file.write(TrackInfo.unused2)
+                    file.write(TrackInfo.sectorSize)
+                    file.write(int.to_bytes(TrackInfo.numberOfSectors,1,'little'))
+                    file.write(TrackInfo.gap3)
+                    file.write(TrackInfo.filler)
+                    file.write(TrackInfo.sectorTable)
+
+                    # Write the Blank Sectors filled with filler byte.
+
+                    file.write(TrackInfo.filler * TotalSectors * 512)
+
+
+
+            # Combine All this Sector Information in to the track block.
+    except Exception as error:
+        print(f"Failed to Create Blank DSK File: {FilenameToWrite}")
+        print(f"Error: {error}")
+        sys.exit(0)
+
+    # Create the Disk File
+    # Remember, Amstrad CPC Disks Require Interlaced Sectors for performance
+
 
 
 if __name__ == "__main__":
@@ -851,29 +986,46 @@ if __name__ == "__main__":
     parser.add_argument("-ts","--trackStart", help="Start Track to View", type=int, default=0)
     parser.add_argument("-te","--trackEnd", help="End Track to View", type=int, default=42)
 
-    parser.add_argument("-dh","--displayHeader", 
+    parser.add_argument("-dh","--displayHeader",
                         help="Display Disk Header Information", 
                         action="store_true",default=False)
 
-    parser.add_argument("-ds","--displaySector", 
-                        help="Display Sector Information", 
+    parser.add_argument("-ds","--displaySector",
+                        help="Display Sector Information",
                         action="store_true",default=False)
 
-    parser.add_argument("-dir","--directory", 
-                        help="Display Directory Information", 
+    parser.add_argument("-dir","--directory",
+                        help="Display Directory Information",
                         action="store_true",default=False)
 
-    parser.add_argument("-s","--side", 
-                        help="Select Drive Head (0:1)", 
+    parser.add_argument("-s","--side",
+                        help="Select Drive Head (0:1)",
                         type=int, default=0)
 
-    parser.add_argument("-v","--verbose", 
+    parser.add_argument("-v","--verbose",
                         help="Show Startup Parameters", 
                         action="store_true",default=False)
 
-    parser.add_argument("-d","--detail", 
+    parser.add_argument("-d","--detail",
                         help="Show File Information", 
                         action="store_true",default=False)
+    
+    # First Mutually Excluded Group of Flags
+    #group=parser.add_mutually_exclusive_group()
+    parser.add_argument("-f","--format",
+                    help="Create an Amstrad CPC Compatible Formatted Disk, Needs Format Type Param",
+                    action="store_true",default=False)
+    
+    parser.add_argument("-ft","--formatType",
+                    help="Disk Format Type to Create, 0 = DATA, 1 = SYSTEM, 2 = IBM, 3 = ZX Spectrum +3, Default = DATA",
+                    type=int, default=0)
+    
+    parser.add_argument("-ftracks","--formatTracks",
+                help="Number of Tracks for the Disk Image, default = 42",
+                type=int, default=42)
+    parser.add_argument("-fsides","--formatSides",
+                help="Number of Sides for the Disk Image (1 or 2), default = 1",
+                type=int, default=1)
 
     args = parser.parse_args()
 
@@ -889,7 +1041,14 @@ if __name__ == "__main__":
     print(now.strftime(f"Program Run: %Y-%m-%d %H:%M:%S{CWHITE}"))
     print("-"*80)
 
-    print(f"\nProcessing: {CGREENBG}{CBLACK} {args.filename} {CWHITE}{CBLACKBG}\n")
+
+
+    if args.format:
+        print(f"\nCreating New DSK: {CGREENBG}{CBLACK} {args.filename} {CWHITE}{CBLACKBG}\n")
+        CreateBlankDSKFile(args.filename, args.formatTracks, args.formatSides, args.formatType)
+    else:
+        print(f"\nProcessing: {CGREENBG}{CBLACK} {args.filename} {CWHITE}{CBLACKBG}\n")
+        
 
     # Check file actually exists before we start...
     if not os.path.isfile(args.filename):
@@ -916,7 +1075,9 @@ if __name__ == "__main__":
         print(f"  End Track: {CGREEN}{DEFAULT_END_TRACK}{CWHITE}")
         print(f"       Head: {CGREEN}{args.side}{CWHITE}")
 
+
     # Load the File to Memory and Pre-Process it
+    # Also Validated a new DSK Image if it's just been created.
     loadDSKToMemory(args.filename, args.verbose)
 
     if args.displayHeader:
