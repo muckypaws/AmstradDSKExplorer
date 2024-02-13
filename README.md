@@ -55,6 +55,10 @@ Commands :-
     -te             = Track End (Default 42)
     -s              = Side (0 = Head 0, 1 = Head 1) Default Head 0
     -v              = Verbose
+    -f              = Create a Blank DSK Image, Default Amstrad DATA, 42 Tracks, Single Side
+    -ft             = Format Type, 0 = DATA, 1 = VENDOR, 2 = IBM, 3 = ZX Spectrum +3 IBM
+    -ftracks        = Number of Tracks, between 1 and 82, default 42
+    -fsides         = Number of Sides, 1 or 2, default 1
 
 
 ## python3 DSKUtilV3 -dh filename.dsk
@@ -234,3 +238,42 @@ File Type of 0 = BASIC Program
     00:LOADER  .         	3	#B800 	#06E8 	#8000
     00:MC      .         	3	#7000 	#5000 	#8040
     00:SCREEN  .         	3	#8A00 	#1B00 	#0000
+
+
+## python3 DSKInfoV3.py -f ./TestDisks/NewDisk.dsk 
+
+    Create a Default Amstrad CPC DATA Disk, 42 Tracks, 1 Side
+
+## python3 DSKInfoV3.py -f -ft 1 ./TestDisks/NewDiskVENDOR.dsk 
+
+    Create a Default Amstrad CPC VENDOR Disk, 42 Tracks, 1 Side
+
+## python3 DSKInfoV3.py -f -ft 2 ./TestDisks/NewDiskIBM.dsk 
+
+    Create a Default Amstrad CPC IBM Disk, 42 Tracks, 1 Side
+
+## python3 DSKInfoV3.py -f -ft 3 ./TestDisks/NewDiskSpeccy.dsk 
+
+    Create a Default ZX Spectrum +3 IBM Disk, 42 Tracks, 1 Side
+
+## python3 DSKInfoV3.py -f -ft 1 -ftracks 80 ./TestDisks/NewDiskVENDOR.dsk 
+
+    Create a Default Amstrad CPC VENDOR Disk, 80 Tracks, 1 Side
+
+## python3 DSKInfoV3.py -f -ft 1 -ftracks 80 -fsides 2 ./TestDisks/NewDiskVENDOR.dsk 
+
+    Create a Default Amstrad CPC VENDOR Disk, 80 Tracks, 2 Sides
+
+Think you get the idea :) 
+
+    --------------------------------------------------------------------------------
+    DSK File Info Utility... www.muckypaws.com
+
+    Program Run: 2024-02-13 17:57:38
+    --------------------------------------------------------------------------------
+
+    Creating New DSK:  ./testFormatDiskDATA.dsk 
+
+    Disk Format: DATA
+     Disk Sides: 2
+         Tracks: 82
