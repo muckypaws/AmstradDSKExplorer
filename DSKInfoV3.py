@@ -52,6 +52,8 @@
         #!/bin/bash
         find . -name "*.dsk" -type f  -exec python3 DSKInfoV3.py -dir -d  {} \; > FileInfoList.txt
 '''
+# pylint: disable=line-too-long
+
 import argparse
 import os
 import sys
@@ -202,7 +204,7 @@ class StructureMeta(type):
         Metaclass that automatically creates StructField descriptors
     '''
     def __init__(self, clsname, bases, clsdict):
-        fields = getattr(self, '_fields_', []) 
+        fields = getattr(self, '_fields_', [])
         byte_order = ''
         offset = 0
         for format, fieldname in fields:
@@ -211,11 +213,11 @@ class StructureMeta(type):
                         NestedStruct(fieldname, format, offset))
                 offset += format.struct_size
             else:
-                if format.startswith(('<','>','!','@')): 
+                if format.startswith(('<','>','!','@')):
                     byte_order = format[0]
                     format = format[1:]
                 format = byte_order + format
-                setattr(self, fieldname, StructField(format, offset)) 
+                setattr(self, fieldname, StructField(format, offset))
                 offset += struct.calcsize(format)
         setattr(self, 'struct_size', offset)
 
@@ -223,9 +225,10 @@ class Structure(metaclass=StructureMeta):
     def __init__(self, bytedata):
         self._buffer = memoryview(bytedata)
         super().__init__()
-    
+
     # Add a write method, should it be this hard?
     def write(self,  file):
+        '''Helper Function to write the contents of the Structure to File'''
         for mydatatype, field in self._fields_:
             mydata = getattr(self,field)
             # Check instance type for write operation
@@ -267,9 +270,9 @@ class DSKHeader(Structure):
     _fields_ = [
         ('<34s','header'), 		
         ('<14s','creator'),
-        ('B','numberOfTracks'),
-        ('B','numberOfSides'),
-        ('h','oldTrackSize'),
+        ('B',   'numberOfTracks'),
+        ('B',   'numberOfSides'),
+        ('h',   'oldTrackSize'),
         ('<204s','trackSizeTable')
     ]
 
@@ -325,14 +328,14 @@ class SectorInformationBlock(Structure):
 class TrackInformationBlock(Structure):
     _fields_ = [
         ('<12s','header'),
-        ('<4s','unused'),
-        ('B','TrackNumber'),
-        ('B','TrackSide'),
-        ('h','unused2'),
-        ('B','sectorSize'),
-        ('B','numberOfSectors'),
-        ('B','gap3'),
-        ('B','filler'),
+        ('<4s', 'unused'),
+        ('B',   'TrackNumber'),
+        ('B',   'TrackSide'),
+        ('h',   'unused2'),
+        ('B',   'sectorSize'),
+        ('B',   'numberOfSectors'),
+        ('B',   'gap3'),
+        ('B',   'filler'),
         ('<232s','sectorTable')
     ]
         
@@ -352,50 +355,52 @@ class TrackInformationBlock(Structure):
 # Define the PLUS3DOS Header
 #
 class Plus3DOSHeader(Structure):
+    '''Data Structure for a PLUS 3 DOS Directory Entry'''
     _fields_ = [
-        ('<8s','header'),
-        ('B','SoftEOF'),
-        ('B','Issue'),
-        ('B','Version'),
-        ('<L','TotalFileLen'),
-        ('B','FileType'),
-        ('<H','Filelen'),
-        ('<H','Param1'),
-        ('<H','Param2'),
-        ('B','Unused'),
-        #(SectorInformationBlock,'sectorTable[29]')
+        ('<8s', 'header'),
+        ('B',   'SoftEOF'),
+        ('B',   'Issue'),
+        ('B',   'Version'),
+        ('<L',  'TotalFileLen'),
+        ('B',   'FileType'),
+        ('<H',  'Filelen'),
+        ('<H',  'Param1'),
+        ('<H',  'Param2'),
+        ('B',   'Unused'),
         ('<104s','Reserved'),
-        ('B','Checksum'),
+        ('B',   'Checksum'),
     ]
 
 #
 # Define the PLUS3DOS Header
 #
 class AmstradFileHeader(Structure):
+    '''Data Structure for an Amstrad CPC Directory Entry'''
     _fields_ = [
-        ('B', 'User'),
-        ('<11s', 'Filename'),
+        ('B',   'User'),
+        ('<11s','Filename'),
         ('<4s', 'Filler'),
-        ('B','BlockNumber'),
-        ('B','LastBlock'),
-        ('B','FileType'),            
-        ('<H','FileSize'),
-        ('<H','FileLoad'),
-        ('B','FirstBlock'),
-        ('<H','LogicalLength'),
-        ('<H','EntryAddress'),
+        ('B',   'BlockNumber'),
+        ('B',   'LastBlock'),
+        ('B',   'FileType'),            
+        ('<H',  'FileSize'),
+        ('<H',  'FileLoad'),
+        ('B',   'FirstBlock'),
+        ('<H',  'LogicalLength'),
+        ('<H',  'EntryAddress'),
         ('<36s','Reserved'),
     ]
 
 class CPM22DirectoryEntry(Structure):
+    '''Data Structure for a CPM2.2 Directory Entry'''
     _fields_ = [
-        ('B', 'User'),
-        ('<11s', 'Filename'),
-        ('<B', 'Extent'),
-        ('<B', 'Reserved'),
-        ('<B', 'ExtentHigh'),
-        ('<B', 'RecordCount'),
-        ('<16s', 'Allocation')
+        ('B',   'User'),
+        ('<11s','Filename'),
+        ('<B',  'Extent'),
+        ('<B',  'Reserved'),
+        ('<B',  'ExtentHigh'),
+        ('<B',  'RecordCount'),
+        ('<16s','Allocation')
     ]
 
     # Read Only Flag
@@ -405,7 +410,7 @@ class CPM22DirectoryEntry(Structure):
     # Read Only Flag
     def hidden(self):
         return self.Filename[9] & 0x80
-    
+
 #
 #   FDC Status Bits are defined in the NEC µPD765A Specification
 #   Only Implementing ones identified to date.
@@ -516,6 +521,7 @@ def DisplaySectorInfo(StartTrack, EndTrack):
 # Print the Disk Header Information
 #
 def DisplayDiskHeader(verbose):
+    '''Break down the fields in a DSK Header'''
     global DSKDictionary
 
     print(f"          Header: {DSKDictionary['DiskHeader'].header.decode()}")
@@ -564,10 +570,11 @@ def GetSectorOffset(Track, SectorToFind):
 
 
 #
-# Taken from StackOverflow: 
+# Taken from StackOverflow:
 # https://stackoverflow.com/questions/22593822/doing-a-bitwise-operation-on-bytes
 #
 def andbytes(abytes, bbytes):
+    '''Logical AND a collection of BYTES or BYTE, madness... but there ya go'''
     return bytes([a & b for a, b in zip(abytes[::-1], bbytes[::-1])][::-1])
 
 #
@@ -652,7 +659,7 @@ def getFileInfo(track, sector, head):
 # Thankfully Directories are on the Same Track and Incremental Sectors
 #
 def DisplayDirectory(head, detail):
-
+    '''Show the contents of a CPM2.2 Directory'''
     if not DEFAULT_DSK_FORMAT:
         print("Error: Default Disk Directory Format Undetected")
         return
