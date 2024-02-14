@@ -11,9 +11,9 @@
             "program": "${file}",
             "console": "integratedTerminal",
             //"args": ["-ds","-ts","18","-te","18","./TestDisks/Mermaid.dsk"],
-            //"args": ["-dir","./TestDisks/XorOriginal.dsk"],
+            "args": ["-dir","./TestDisks/XorOriginal.dsk"],
             //"args": ["-dir","-d","-v","./testFormatDisk.dsk"],
-            "args": ["-f","--formatType","0","--formatTracks","82","--formatSides","2","./testFormatDiskDATA.dsk"],
+            //"args": ["-f","--formatType","0","--formatTracks","30","--formatSides","1","./testFormatDiskDATA.dsk"],
         
         }
     ]
