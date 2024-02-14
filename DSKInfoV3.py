@@ -112,6 +112,11 @@ CONST_VENDOR_FORMAT     = 1
 CONST_IBM_FORMAT        = 2
 CONST_IBM_ZXSPECTRUM    = 3
 
+CONST_DATA_BIT      = 1
+CONST_VENDOR_BIT    = 2
+CONST_IBM_BIT       = 4
+CONST_PLUS3DOS_BIT  = 8
+
 DEFAULT_START_TRACK = 0
 DEFAULT_END_TRACK   = 42
 DEFAULT_HEAD        = 0
@@ -467,7 +472,7 @@ def GetFDCStatusText(FDC1, FDC2):
 #
 # Get Sector information from Sector Table by position (0-numberOfSectors)
 #
-def GetSectorDataFromTrackByPosition(TrackDict, SectorPosition):
+def GetSectorInfoFromTrackByPosition(TrackDict, SectorPosition):
 
     table = TrackDict.sectorTable
 
@@ -482,7 +487,7 @@ def GetSectorDataFromTrackByPosition(TrackDict, SectorPosition):
 #
 # Get Sector information from Sector Table from TrackID, ie:"07:0" by position (0-numberOfSectors)
 #
-def GetSectorDataFromSectorTablePosition(TrackID, SectorPosition):
+def GetSectorInfoFromSectorTablePosition(TrackID, SectorPosition):
 
     table = DSKDictionary[TrackID].sectorTable
 
@@ -510,11 +515,11 @@ def DisplaySectorInfo(StartTrack, EndTrack):
             track.TrackNumber <= EndTrack:
             print()
             print("*"*80)
-            print(f"\nTrack: {track.TrackNumber:02d}, GAP3: #{track.gap3:02X}, Filler Byte: #{track.filler:02X}\n")
+            print(f"\nTrack: {track.TrackNumber:02d}, GAP3: {CBLUE}#{track.gap3:02X}{CWHITE}, Filler Byte: {CBLUE}#{track.filler:02X}{CWHITE}\n")
             print(" C,  H,  ID,  N, FDC Status")
 
             for sectors in range(track.numberOfSectors):
-                trackNum, side, sectorID, sectorSize, FDCStatus = GetSectorDataFromTrackByPosition(track, sectors )
+                trackNum, side, sectorID, sectorSize, FDCStatus = GetSectorInfoFromTrackByPosition(track, sectors )
                 print(f"{trackNum:02d}, {side:02d}, #{sectorID:02X}, {sectorSize:02d}, {FDCStatus}")
 
 #
@@ -601,6 +606,76 @@ def normaliseFilename(filename):
     return normal
 
 #
+#
+#
+def getInitialDirectoryTrackAndSectorForDiskFormat(diskFormat):
+    ''' 
+    Set the inital track and sector for directory entry info
+    based on disk file format for known CPM Valid Systems
+    '''
+    sectorCount = 9
+    # Check which File Format
+    if diskFormat & CONST_DATA_BIT:
+        track = 0
+        sector = 0xc1
+    elif diskFormat & CONST_VENDOR_BIT:
+        track = 2
+        sector = 0x41
+    elif diskFormat & CONST_IBM_BIT:
+        track = 1
+        sector = 1
+        sectorCount = 8
+    elif diskFormat & CONST_PLUS3DOS_BIT:
+        track = 1
+        sector = 1
+    else:
+        print(f"Failure to obtain Cluster info")
+        print(f"Unknown Disk Format: {CRED}{diskFormat:02X}{CWHITE}")
+        sys.exit(0)
+        
+    return track, sector, sectorCount
+#
+#   Get Track and Sector Offset for Cluster ID
+#
+def calcTrackAndSectorForCluster(cluster: int, diskFormatType: int):
+    '''Calculate the Track and Sector Offset for any Cluster ID'''
+
+    track, sectorID, maxSectors = getInitialDirectoryTrackAndSectorForDiskFormat(diskFormatType)
+
+    # Clusters are two sectors
+    cluster = cluster * 2
+    
+    # Divide by the number of Sectors Per track
+    # Add the start Track for Directory Info, DATA = 0, VENDOR = 2, IBM = 1
+    ClusterTrack = int((cluster / maxSectors ) + track)
+    ClusterSector = (cluster % maxSectors) + sectorID
+    
+    # Next Sector
+    cluster += 1
+    ClusterTrack2 = int((cluster / maxSectors ) + track)
+    ClusterSector2 = (cluster % maxSectors) + sectorID
+    
+    # Return Track and Sector
+    return ClusterTrack, ClusterSector, ClusterTrack2, ClusterSector2
+    
+
+#
+#   Get Complete Data from Cluster ID
+#
+def getDataFromClusterID(clusterID: int, diskFormatType: int):
+    '''
+    Return Cluster Data (1k) from Cluster ID from DSK Image
+    Assuming conformance to CPM2.2 and 512Byte Sector Records.
+    A cluster can span to the next track.
+    '''
+    
+    # First Workout the initial Track and Sector Offset from Cluster ID
+    Track1, Sector1, Track2, Sector2 = calcTrackAndSectorForCluster(clusterID, diskFormatType)
+
+    
+    
+ 
+#
 # Sectors have to be 512Bytes Each and conform to CPM2.2 Standards.
 #
 def getFileInfo(track, sector, head):
@@ -660,20 +735,13 @@ def getFileInfo(track, sector, head):
 #
 def DisplayDirectory(head, detail):
     '''Show the contents of a CPM2.2 Directory'''
+    global DEFAULT_DSK_FORMAT
+    
     if not DEFAULT_DSK_FORMAT:
         print("Error: Default Disk Directory Format Undetected")
         return
 
-    # Check which File Format
-    if DEFAULT_DSK_FORMAT & 1:
-        track = 0
-        sector = 0xc1
-    elif DEFAULT_DSK_FORMAT & 2:
-        track = 2
-        sector = 0x41
-    elif DEFAULT_DSK_FORMAT & 4:
-        track = 1
-        sector = 1
+    track, sector, totalSectors = getInitialDirectoryTrackAndSectorForDiskFormat(DEFAULT_DSK_FORMAT)
 
     FileList = []
     FileListExpanded = []
@@ -739,9 +807,10 @@ def DisplayDirectory(head, detail):
                                     # This contains the Actual File Header Info 
                                     # Stored at that Track and Sector
                                     # Each Cluster is 1K or 2 Sectors.
-                                    cluster = int(DirectoryRecord.Allocation[0]) * 2
-                                    ClusterTrack = int((cluster / TrackDict.numberOfSectors ) + track)
-                                    ClusterSector = (cluster % TrackDict.numberOfSectors) + initialSector
+                                    
+                                    cluster = int(DirectoryRecord.Allocation[0])
+                                    ClusterTrack, ClusterSector = calcTrackAndSectorForCluster(cluster, DEFAULT_DSK_FORMAT)[0:2]
+                                    
                                     filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
                                     fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
                                     # Add Enhanced File Details to List
@@ -879,11 +948,13 @@ def loadDSKToMemory(filename, verbose):
                                         #print(sectorData , len(sectorData))
 
                                         if sectorData.SectorID > 0xc0 and sectorData.SectorID < 0xca:
-                                            DEFAULT_DSK_FORMAT |= 1
+                                            DEFAULT_DSK_FORMAT |= CONST_DATA_BIT
                                         if sectorData.SectorID > 0x40 and sectorData.SectorID < 0x4a:
-                                            DEFAULT_DSK_FORMAT |= 2
+                                            DEFAULT_DSK_FORMAT |= CONST_VENDOR_BIT
                                         if sectorData.SectorID > 0x0 and sectorData.SectorID < 0x09:
-                                            DEFAULT_DSK_FORMAT |= 4
+                                            DEFAULT_DSK_FORMAT |= CONST_IBM_BIT
+                                        if sectorData.SectorID > 0x0 and sectorData.SectorID < 0x0a:
+                                            DEFAULT_DSK_FORMAT |= CONST_PLUS3DOS_BIT
 
                                         x += 8
                             else:
@@ -894,11 +965,14 @@ def loadDSKToMemory(filename, verbose):
                                         print(f"Disk Header set to: {CRED}{DSKDictionary['DiskHeader'].numberOfTracks}{CWHITE}")
 
                 # Set Disk Type Flags
-                if DEFAULT_DSK_FORMAT == 1:
+                if DEFAULT_DSK_FORMAT == CONST_DATA_BIT:
                     DEFAULT_DSK_TYPE = "DATA"
-                elif DEFAULT_DSK_FORMAT == 2:
+                elif DEFAULT_DSK_FORMAT == CONST_VENDOR_BIT:
                     DEFAULT_DSK_TYPE = "SYSTEM"
-                elif DEFAULT_DSK_FORMAT == 4:
+                elif DEFAULT_DSK_FORMAT == CONST_PLUS3DOS_BIT + CONST_IBM_BIT:
+                    DEFAULT_DSK_TYPE = "PLUS3DOS"
+                    DEFAULT_DSK_FORMAT &= ~CONST_IBM_BIT
+                elif DEFAULT_DSK_FORMAT == CONST_IBM_BIT:
                     DEFAULT_DSK_TYPE = "IBM"
                 else:
                     # Protection Systems Mixed and Matched Sectors
