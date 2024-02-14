@@ -280,8 +280,7 @@ class DSKHeader(Structure):
         ('h',   'oldTrackSize'),
         ('<204s','trackSizeTable')
     ]
-
-        
+    # Method to setup Defaults
     def defaults(self, numberOfTracks, numberOfSides, numberOfSectors):
         self.header = b'EXTENDED CPC DSK File\r\nDisk-Info\r\n'
         self.creator = b'muckypaws.com '
@@ -315,8 +314,6 @@ class SectorInformationBlock(Structure):
 #            self.defaults(*args)
 #        else:
 #            super().__init__
-        
-
     def defaults(self, TrackNum, TrackSide, SectorID, SectorSize):
         ''' Set the defaults for a Sector ID'''
         self.Track = TrackNum
@@ -658,11 +655,27 @@ def calcTrackAndSectorForCluster(cluster: int, diskFormatType: int):
     # Return Track and Sector
     return ClusterTrack, ClusterSector, ClusterTrack2, ClusterSector2
     
+def getSectorDataFromTrack(track: int, sector: int, side:int):
+    '''Get Sector Data from Track if available'''
+    TrackEntry = f"{track:02d}:{side:01d}"
+    
+    if TrackEntry in DSKDictionary.keys():
+            
+        TrackDict = DSKDictionary[TrackEntry]
 
+        offset = GetSectorOffset(TrackDict, sector)
+
+        if offset >= 0 and offset < TrackDict.numberOfSectors:
+            offset = offset * 512
+
+        return DSKDataDictionary[TrackEntry][offset:offset+512]
+    
+    print(f"\nUnable to locate Data for Track:{CRED}{track}{CWHITE}, Sector:{CRED}#{sector:02X}{CWHITE}")
+    return b'0'      
 #
 #   Get Complete Data from Cluster ID
 #
-def getDataFromClusterID(clusterID: int, diskFormatType: int):
+def getDataFromClusterID(clusterID: int, diskFormatType: int, side: int):
     '''
     Return Cluster Data (1k) from Cluster ID from DSK Image
     Assuming conformance to CPM2.2 and 512Byte Sector Records.
@@ -672,9 +685,15 @@ def getDataFromClusterID(clusterID: int, diskFormatType: int):
     # First Workout the initial Track and Sector Offset from Cluster ID
     Track1, Sector1, Track2, Sector2 = calcTrackAndSectorForCluster(clusterID, diskFormatType)
 
+    data = getSectorDataFromTrack(Track1, Sector1, side) + \
+            getSectorDataFromTrack(Track2, Sector2, side)
     
-    
- 
+    if len(data) > 2:
+        return data
+    else:
+        print(f"\nUnable to locate Data for Cluster: {clusterID} = Tracks:{Track1}, Sector:#{Sector1:02X}, Track:{Track2}, Sector:#{Sector2:02X}{CWHITE}")
+        return b'0'        
+            
 #
 # Sectors have to be 512Bytes Each and conform to CPM2.2 Standards.
 #
@@ -734,20 +753,23 @@ def getFileInfo(track, sector, head):
 # Thankfully Directories are on the Same Track and Incremental Sectors
 #
 def DisplayDirectory(head, detail):
-    '''Show the contents of a CPM2.2 Directory'''
+    '''
+    Show the contents of a CPM2.2 Directory
+    head = Disk Side (0 or 1)
+    detail = Flag to Show Extended File Information
+    '''
+    
     global DEFAULT_DSK_FORMAT
     
     if not DEFAULT_DSK_FORMAT:
         print("Error: Default Disk Directory Format Undetected")
         return
 
-    track, sector, totalSectors = getInitialDirectoryTrackAndSectorForDiskFormat(DEFAULT_DSK_FORMAT)
+    track, sector = getInitialDirectoryTrackAndSectorForDiskFormat(DEFAULT_DSK_FORMAT)[0:2]
 
     FileList = []
     FileListExpanded = []
 
-    # The initial sector for start of Track
-    initialSector = sector
     # Always Side 0
     for sectorsToSearch in range(4):
 
@@ -766,6 +788,7 @@ def DisplayDirectory(head, detail):
                 TrackDataToProcess = DSKDataDictionary[TrackEntry]
                 dataToProcess = TrackDataToProcess[offset:offset+SectorSize]
 
+                # 16 Entries per 512 Byte Sector (512/16)
                 for x in range(16):
                     # Get File Record Info
                     DirectoryRecord = CPM22DirectoryEntry(dataToProcess[x*CPM22DirectoryEntry.struct_size:
@@ -803,6 +826,7 @@ def DisplayDirectory(head, detail):
                                 if entry not in FileList:
                                     # Add File to List 
                                     FileList += [entry]
+                                    
                                     # Get first Cluster ID where File Stored
                                     # This contains the Actual File Header Info 
                                     # Stored at that Track and Sector
@@ -813,6 +837,7 @@ def DisplayDirectory(head, detail):
                                     
                                     filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
                                     fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
+                                    
                                     # Add Enhanced File Details to List
                                     FileListExpanded += fileDetails
 
@@ -849,7 +874,6 @@ def DisplayDirectory(head, detail):
 
             for filename in FileListExpanded:
                 print(filename)
-
 
 #
 # Load DSK File to Memory
@@ -984,7 +1008,6 @@ def loadDSKToMemory(filename, verbose):
             print(f"Failed to open DSK File: {filename}")
             print(f"Error: {error}")
             sys.exit(0)
-
 
 def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
     '''Create a Blank Disk File Image for use in an Emulator or GOTEK etc.'''
@@ -1209,3 +1232,7 @@ if __name__ == "__main__":
 
     if args.directory:
         DisplayDirectory(args.side, args.detail)
+
+    # Temp Test
+    data = getDataFromClusterID(2,DEFAULT_DSK_FORMAT, 0)
+    print("End")
