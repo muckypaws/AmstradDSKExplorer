@@ -222,6 +222,30 @@ class StructureMeta(type):
 class Structure(metaclass=StructureMeta):
     def __init__(self, bytedata):
         self._buffer = memoryview(bytedata)
+        super().__init__()
+    
+    # Add a write method, should it be this hard?
+    def write(self,  file):
+        for mydatatype, field in self._fields_:
+            mydata = getattr(self,field)
+            # Check instance type for write operation
+            if isinstance(mydata,(bytes, bytearray)):
+                file.write(mydata)
+            elif isinstance(mydata,int):
+                if mydatatype.startswith(('<','>','!','@')): 
+                    byte_order = mydatatype[0]
+                    len = struct.calcsize(mydatatype[1:])
+                    if byte_order == '<':
+                        byte_order = 'little'
+                    elif byte_order == '>':
+                        byte_order = 'big'
+                    format = format[1:]
+                    file.write(mydata.to_bytes(len,byte_order))
+                else:
+                    len = struct.calcsize(mydatatype)
+                    file.write(mydata.to_bytes(len,'little'))
+            else:
+                file.write(mydata.encode())
 
 '''
     Back to my code... 
@@ -249,6 +273,19 @@ class DSKHeader(Structure):
         ('<204s','trackSizeTable')
     ]
 
+        
+    def defaults(self, numberOfTracks, numberOfSides, numberOfSectors):
+        self.header = b'EXTENDED CPC DSK File\r\nDisk-Info\r\n'
+        self.creator = b'muckypaws.com '
+        self.numberOfTracks = numberOfTracks
+        self.numberOfSides = numberOfSides
+        self.oldTrackSize = b'\x00\x00'
+
+        highbyte = andbytes(int.to_bytes(((numberOfSectors * 512) + 256) >> 8, 1,'little') , b'\xff')
+        trackTable  = highbyte * (numberOfTracks * numberOfSides)
+        trackTable2 = b'\x00' * (204 - (numberOfTracks * numberOfSides))
+        finalTrackTable = trackTable + trackTable2
+        self.trackSizeTable = finalTrackTable[:204]
 #
 # Define the Sector Information Block Structure
 #
@@ -279,6 +316,18 @@ class TrackInformationBlock(Structure):
         ('B','filler'),
         ('<232s','sectorTable')
     ]
+        
+    def defaults(self, TrackNum, TrackSide, numberOfSectors):
+        self.header = b'Track-Info\r\n'
+        self.unused = b'\x00\x00\x00\x00' 
+        self.TrackNumber = TrackNum
+        self.TrackSide = TrackSide
+        self.unused2 = b'\x00\x00'
+        self.sectorSize = b'\x02'
+        self.numberOfSectors = numberOfSectors
+        self.gap3 = b'\x4e'
+        self.filler = b'\xe5'
+        self.sectorTable = '\x00' * 232
 
 #
 # Define the PLUS3DOS Header
@@ -838,7 +887,7 @@ def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
     if os.path.isfile(FilenameToWrite):
         print(f"\nFile Already Exists: {CGREEN}{FilenameToWrite}{CWHITE}")
         print(f"DSK Image {CRED}NOT{CWHITE} Created.\n")
-        return
+    #    return
 
     # Used to create the initial Struct
     fakeHeader = b'\x00' * 256
@@ -889,44 +938,19 @@ def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
     # But... I may want to create a DSK in memory to inject files at a later
     # date.
 
-    DiskHeader = DSKHeader(fakeHeader)
-    DiskHeader.header = "EXTENDED CPC DSK File\r\nDisk-Info\r\n"
-    DiskHeader.creator = "muckypaws.com "
-    DiskHeader.numberOfTracks = tracks
-    DiskHeader.numberOfSides = sides
-
-    trackTable  = b'\x13' * tracks * sides
-    if format == CONST_IBM_FORMAT:
-        trackTable  = b'\x11' * tracks * sides
-    trackTable2 = b'\x00' * (204 - (tracks * sides))
-    finalTrackTable = trackTable + trackTable2
-    DiskHeader.trackSizeTable = finalTrackTable[:204]
-
-
+    DiskHeader = DSKHeader(b'\x00' * DSKHeader.struct_size)
+    DiskHeader.defaults(42,1,9)
+    
     TrackInfo = TrackInformationBlock(b'\0'*TrackInformationBlock.struct_size)
+    TrackInfo.defaults(0,0,TotalSectors)
 
-    TrackInfo.header = b'Track-Info\r\n'
-    TrackInfo.numberOfSectors = TotalSectors
-    TrackInfo.sectorSize = b'\x02'
-    TrackInfo.filler = b'\xe5'
-    TrackInfo.gap3 = b'\x4e'
-    TrackInfo.unused2 = b'\x00\x00'
 
     # Interleved Sectors List
-
-
     try:
         with open(FilenameToWrite, mode="wb") as file:
             
-            # Write the Main DSK Header
-            file.write(DiskHeader.header.encode())
-            file.write(DiskHeader.creator.encode())
-            file.write(int.to_bytes(DiskHeader.numberOfTracks,1,'little'))
-            file.write(int.to_bytes(DiskHeader.numberOfSides,1,'little'))
-            file.write(int.to_bytes(DiskHeader.oldTrackSize,2,'little'))
-            file.write(DiskHeader.trackSizeTable)
+            DiskHeader.write(file)
 
-            #track = b'\x00'
             # Now write out Blank Track Information
             for track in range(tracks):
                 for side in range(sides):
@@ -946,17 +970,8 @@ def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
 
                     TrackInfo.sectorTable = finalSectorTable[:232]
 
-                    file.write(TrackInfo.header)
-                    file.write(TrackInfo.unused)
-                    file.write(TrackInfo.TrackNumber)
-                    file.write(TrackInfo.TrackSide)
-                    file.write(TrackInfo.unused2)
-                    file.write(TrackInfo.sectorSize)
-                    file.write(int.to_bytes(TrackInfo.numberOfSectors,1,'little'))
-                    file.write(TrackInfo.gap3)
-                    file.write(TrackInfo.filler)
-                    file.write(TrackInfo.sectorTable)
-
+                    TrackInfo.write(file)
+                    
                     # Write the Blank Sectors filled with filler byte.
 
                     file.write(TrackInfo.filler * TotalSectors * 512)
@@ -1074,7 +1089,6 @@ if __name__ == "__main__":
         print(f"Start Track: {CGREEN}{DEFAULT_START_TRACK}{CWHITE}")
         print(f"  End Track: {CGREEN}{DEFAULT_END_TRACK}{CWHITE}")
         print(f"       Head: {CGREEN}{args.side}{CWHITE}")
-
 
     # Load the File to Memory and Pre-Process it
     # Also Validated a new DSK Image if it's just been created.
