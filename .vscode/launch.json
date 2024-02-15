@@ -14,7 +14,7 @@
             //"args": ["-dir","-d","./TestDisks/Amstrad Compilation Disk Spectrum Plus 3 - Side A.dsk"],
             //"args": ["-dir","-d","-v","./testFormatDisk.dsk"],
             //"args": ["-f","--formatType","0","--formatTracks","30","--formatSides","1","./testFormatDiskDATA.dsk"],
-            "args": ["-dir","-d","./TestDisks/JavaCPC64Entries.dsk"],
+            "args": ["-dir","-d","./TestDisks/who-dares-win-2-uk-1986-t1-dsk-usa.dsk"],
             
         }
     ]

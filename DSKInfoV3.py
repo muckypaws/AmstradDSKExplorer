@@ -719,6 +719,9 @@ def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
     # Only Need 128 Bytes just in case it's a PLUS3DOS Header... 
     FileHeader = getDataFromClusterID(cluster, formatType, side)[:128]
 
+    # Suppress more messages.
+    headerless = 0
+
     if len(FileHeader) == 128:
 
         if FileHeader[:8] != b'PLUS3DOS':
@@ -732,7 +735,6 @@ def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
                 filelen = FileInfoHeader.LogicalLength
                 fileexec = FileInfoHeader.EntryAddress
             else:
-                print("Headerless Record Detected")
                 fileType=-1
 
         else:
