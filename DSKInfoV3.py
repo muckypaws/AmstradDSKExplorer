@@ -697,54 +697,45 @@ def getDataFromClusterID(clusterID: int, diskFormatType: int, side: int):
 #
 # Sectors have to be 512Bytes Each and conform to CPM2.2 Standards.
 #
-def getFileInfo(track, sector, head):
+def getFileInfo(cluster: int, formatType: int, side: int):
     """Try to get File information from Track and Sector."""
     global DEFAULT_SYSTEM
     global GLOBAL_CORRUPTION_FLAG
 
-    TrackEntry = f"{track:02d}:{head:01d}"
 
     fileType = b'\x00'
     fileStart = 0
     filelen = 0
     fileexec = 0
 
-    if TrackEntry in DSKDictionary.keys():
-        TrackDict = DSKDictionary[TrackEntry]
+    # Only Need 128 Bytes just in case it's a PLUS3DOS Header... 
+    FileHeader = getDataFromClusterID(cluster, formatType, side)[:128]
 
-        offset = GetSectorOffset(TrackDict, sector)
+    if len(FileHeader) == 128:
 
-        if offset >= 0 and offset < TrackDict.numberOfSectors:
-            offset = offset * 512
+        if FileHeader[:8] != b'PLUS3DOS':
+            FileInfoHeader = AmstradFileHeader(FileHeader[:64])
+            fileType = int(FileInfoHeader.FileType)
+            fileStart = FileInfoHeader.FileLoad
+            filelen = FileInfoHeader.LogicalLength
+            fileexec = FileInfoHeader.EntryAddress
 
-            TrackDataToProcess = DSKDataDictionary[TrackEntry]
+        else:
+            # Experimental, Process +3DOS Info
+            # Reference : https://area51.dev/sinclair/spectrum/3dos/fileheader/
+            DEFAULT_SYSTEM = CONST_PLUS3DOS
 
-            if len(TrackDataToProcess) >= (offset+64):
-                dataToProcess = TrackDataToProcess[offset:offset+64]
+            FileInfoHeader = Plus3DOSHeader(FileHeader)
+            fileType = FileInfoHeader.FileType
+            filelen = FileInfoHeader.Filelen
+            fileStart = FileInfoHeader.Param1
+            fileexec = FileInfoHeader.Param2
 
-                if dataToProcess[:8] != b'PLUS3DOS':
-                    FileInfoHeader = AmstradFileHeader(dataToProcess[:64])
-                    fileType = int(FileInfoHeader.FileType)
-                    fileStart = FileInfoHeader.FileLoad
-                    filelen = FileInfoHeader.LogicalLength
-                    fileexec = FileInfoHeader.EntryAddress
-
-                else:
-                    # Experimental, Process +3DOS Info
-                    # Reference : https://area51.dev/sinclair/spectrum/3dos/fileheader/
-                    DEFAULT_SYSTEM = CONST_PLUS3DOS
-
-                    FileInfoHeader = Plus3DOSHeader(dataToProcess)
-                    fileType = FileInfoHeader.FileType
-                    filelen = FileInfoHeader.Filelen
-                    fileStart = FileInfoHeader.Param1
-                    fileexec = FileInfoHeader.Param2
-
-            else:
-                if GLOBAL_CORRUPTION_FLAG == 0:
-                    GLOBAL_CORRUPTION_FLAG = 1
-                    print("Warning, Possible Corrupt Disk Detected")
-                    print(f"Track Bytes: {len(TrackDataToProcess)} is less than sector pointer - {offset+64}")
+    else:
+        if GLOBAL_CORRUPTION_FLAG == 0:
+            GLOBAL_CORRUPTION_FLAG = 1
+            print("Warning, Possible Corrupt Disk Detected")
+            print(f"FileHeader Bytes: {len(FileHeader)} insufficient sector data in Cluster:{cluster}, Side:{side}")
 
     return fileType,fileStart, filelen, fileexec
 
@@ -818,7 +809,6 @@ def DisplayDirectory(head, detail):
                         # Check First Directory Entry
                         # Extent Byte should be 00
                         #     >0 Related entry to the primary file.
-
                         if DirectoryRecord.Extent == 0:
                             # Check Valid Name
                             if filename[0] > " ":
@@ -826,18 +816,17 @@ def DisplayDirectory(head, detail):
                                 if entry not in FileList:
                                     # Add File to List 
                                     FileList += [entry]
-                                    
+
                                     # Get first Cluster ID where File Stored
                                     # This contains the Actual File Header Info 
                                     # Stored at that Track and Sector
                                     # Each Cluster is 1K or 2 Sectors.
-                                    
+
                                     cluster = int(DirectoryRecord.Allocation[0])
-                                    ClusterTrack, ClusterSector = calcTrackAndSectorForCluster(cluster, DEFAULT_DSK_FORMAT)[0:2]
-                                    
-                                    filetype, fileStart, fileLen, fileExec = getFileInfo(ClusterTrack, ClusterSector, head)
+
+                                    filetype, fileStart, fileLen, fileExec = getFileInfo(cluster, DEFAULT_DSK_FORMAT, head)
                                     fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
-                                    
+
                                     # Add Enhanced File Details to List
                                     FileListExpanded += fileDetails
 
@@ -1232,7 +1221,3 @@ if __name__ == "__main__":
 
     if args.directory:
         DisplayDirectory(args.side, args.detail)
-
-    # Temp Test
-    data = getDataFromClusterID(2,DEFAULT_DSK_FORMAT, 0)
-    print("End")
