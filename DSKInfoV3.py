@@ -756,11 +756,16 @@ def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
 
     return fileType,fileStart, filelen, fileexec
 
+
+def ExtractFiles(fileList , fileExtractDetails ):
+    print(f"")
+        
+
 #
 # Attempt to show files stored on DISK
 # Thankfully Directories are on the Same Track and Incremental Sectors
 #
-def DisplayDirectory(head, detail):
+def DisplayDirectory(head, detail, extract:int ):
     '''
     Show the contents of a CPM2.2 Directory
     head = Disk Side (0 or 1)
@@ -777,6 +782,8 @@ def DisplayDirectory(head, detail):
 
     FileList = []
     FileListExpanded = []
+    
+    FileExtractionList = {}
 
     track, sector = getInitialDirectoryTrackAndSectorForDiskFormat(DEFAULT_DSK_FORMAT)[0:2]
 
@@ -805,6 +812,7 @@ def DisplayDirectory(head, detail):
 
             filename = normaliseFilename( DirectoryRecord.Filename)
 
+            #FileExtractionList += {filename : DirectoryRecord}
             #Read-Only Flag Set?
             if DirectoryRecord.readOnly():
                 filename += "*"
@@ -850,6 +858,9 @@ def DisplayDirectory(head, detail):
     # De Dupe and Sort
     FileList = sorted(set(FileList))
     FileListExpanded = sorted(set(FileListExpanded))
+    
+    if extract:
+        ExtractFiles(FileList, FileExtractionList)
 
     print()
     print("*"*80)
@@ -1175,7 +1186,10 @@ if __name__ == "__main__":
     parser.add_argument("-fsides","--formatSides",
                 help="Number of Sides for the Disk Image (1 or 2), default = 1",
                 type=int, default=1)
-
+    parser.add_argument("-ex","--extract",
+                help="Number of Sides for the Disk Image (1 or 2), default = 1",
+                action="store_true",default=False)
+    
     args = parser.parse_args()
 
     DEFAULT_START_TRACK = args.trackStart
@@ -1232,4 +1246,4 @@ if __name__ == "__main__":
         DisplaySectorInfo(args.trackStart, args.trackEnd)
 
     if args.directory:
-        DisplayDirectory(args.side, args.detail)
+        DisplayDirectory(args.side, args.detail, args.extract)
