@@ -45,6 +45,13 @@
 #                                  Added new parameters to create New DSK Images.
 #                                  Support for Amstrad CPC DATA, Vendor, IBM
 #                                              ZX Spectrum +3 Standard Disk
+# V0.05 - 15th February 2024     - Nearly Headless Nick Edition
+#                                  Added Support for Headerless Files for Amstrad CPC
+#                                  Can only report on the number of records * 128 bytes 
+#                                  Recorded in the AMSDOS Directory Descriptor
+#                                  Detection isn't 100%, i.e. if the FILENAME matches the
+#                                  the first 12 bytes in a record, it's going to misreport.
+#                                  Also... Changed the order of the Enhanced File Info Output
 
 '''
     Want to run this tool over multiple files?
@@ -827,10 +834,14 @@ def DisplayDirectory(head, detail):
                         cluster = int(DirectoryRecord.Allocation[0])
 
                         filetype, fileStart, fileLen, fileExec = getFileInfo(cluster, DEFAULT_DSK_FORMAT, head, filename[:12])
+                        
+                        # Headerless Disk Record Check, Amstrad CPC doesn't write a Header when Records or ASCII Files written
+                        # Need to work out some handling of this situation
                         if filetype != -1:
-                            fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
+                            fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileExec:04X} \t#{fileLen:04X}"]
                         else:
-                            fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \tHeaderless File Detected"]
+                            recordCount = DirectoryRecord.RecordCount * 128
+                            fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{CGREEN}Headerless File Size:   #{recordCount:04X}{CWHITE}"]
                         # Add Enhanced File Details to List
                         FileListExpanded += fileDetails
 
@@ -855,10 +866,10 @@ def DisplayDirectory(head, detail):
                 print(filename)
         else:
             if DEFAULT_SYSTEM == CONST_AMSTRAD:
-                print(" U:Filename    RH  \tType\tStart\tLength\tExec")
+                print(" U:Filename    RH  \tType\tStart\tExec\tLength")
                 print("-"*53)
             else:
-                print(" U:Filename    RH  \tType\tStart\tLength\tParam2")
+                print(" U:Filename    RH  \tType\tStart\tParam2\tLength")
                 print("-"*53)
 
             for filename in FileListExpanded:
