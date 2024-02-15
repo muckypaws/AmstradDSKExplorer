@@ -272,6 +272,7 @@ class Structure(metaclass=StructureMeta):
 # Disk Header Structure
 #
 class DSKHeader(Structure):
+    '''Structure for DSK File Disk-Info Header'''
     _fields_ = [
         ('<34s','header'), 		
         ('<14s','creator'),
@@ -297,6 +298,7 @@ class DSKHeader(Structure):
 # Define the Sector Information Block Structure
 #
 class SectorInformationBlock(Structure):
+    '''Sector Information Structure'''
     _fields_ = [
         ('B','Track'),
         ('B','Side'),
@@ -328,6 +330,7 @@ class SectorInformationBlock(Structure):
 # Define the Track Information Block Structure
 #
 class TrackInformationBlock(Structure):
+    '''Track Information Block Structure Definition'''
     _fields_ = [
         ('<12s','header'),
         ('<4s', 'unused'),
@@ -342,6 +345,7 @@ class TrackInformationBlock(Structure):
     ]
         
     def defaults(self, TrackNum, TrackSide, numberOfSectors):
+        ''' Set the defaults for the Structure'''
         self.header = b'Track-Info\r\n'
         self.unused = b'\x00\x00\x00\x00' 
         self.TrackNumber = TrackNum
@@ -407,10 +411,12 @@ class CPM22DirectoryEntry(Structure):
 
     # Read Only Flag
     def readOnly(self):
+        '''Has the Read Only flag been set? Bit 7 of the 9th Filename Character'''
         return self.Filename[8] & 0x80
 
     # Read Only Flag
     def hidden(self):
+        '''Has the Hidden/System flag been set? Bit 7 of the 10th Filename Character'''
         return self.Filename[9] & 0x80
 
 #
@@ -470,6 +476,7 @@ def GetFDCStatusText(FDC1, FDC2):
 # Get Sector information from Sector Table by position (0-numberOfSectors)
 #
 def GetSectorInfoFromTrackByPosition(TrackDict, SectorPosition):
+    '''Calculate the correct Sector Info from the TRACK INFO Block'''
 
     table = TrackDict.sectorTable
 
@@ -480,25 +487,13 @@ def GetSectorInfoFromTrackByPosition(TrackDict, SectorPosition):
 
     return SectorInfo.Track, SectorInfo.Side, SectorInfo.SectorID, SectorInfo.SectorSize, GetFDCStatusText(SectorInfo.FDC1, SectorInfo.FDC2)
 
-
-#
-# Get Sector information from Sector Table from TrackID, ie:"07:0" by position (0-numberOfSectors)
-#
-def GetSectorInfoFromSectorTablePosition(TrackID, SectorPosition):
-
-    table = DSKDictionary[TrackID].sectorTable
-
-    if SectorPosition > DSKDictionary[TrackID].numberOfSectors:
-        return -1, -1, -1, -1, -1, -1, -1
-
-    SectorInfo = SectorInformationBlock(table[(SectorPosition*8):(SectorPosition*8)+8])
-
-    return SectorInfo.Track, SectorInfo.Side, SectorInfo.SectorID, SectorInfo.SectorSize, GetFDCStatusText(SectorInfo.FDC1, SectorInfo.FDC2)
-
 #
 # Display Sector Info for All Sectors
 #
 def DisplaySectorInfo(StartTrack, EndTrack):
+    '''
+    Display Sector Info Stored in the Track, similarly to how Discology used to.
+    '''
     global DSKDictionary
 
     print("Sector Information\n")
@@ -523,7 +518,9 @@ def DisplaySectorInfo(StartTrack, EndTrack):
 # Print the Disk Header Information
 #
 def DisplayDiskHeader(verbose):
-    '''Break down the fields in a DSK Header'''
+    '''
+    Break down the fields in a DSK Header and report the information.
+    '''
     global DSKDictionary
 
     print(f"          Header: {DSKDictionary['DiskHeader'].header.decode()}")
@@ -558,6 +555,11 @@ def DisplayDiskHeader(verbose):
 
 
 def GetSectorOffset(Track, SectorToFind):
+    '''
+    Calculate the Sector Offset (Index) Into the Track Table to locate the Sector
+    requested.  Real Disks would interlace sectors for performance reasons, so
+    it's not a 1:1 relation ship.
+    '''
     offset = -1
 
     maxSectors = Track.numberOfSectors
@@ -569,7 +571,6 @@ def GetSectorOffset(Track, SectorToFind):
         if Track.sectorTable[(sectors*8)+2] == SectorToFind:
             offset = sectors
     return offset
-
 
 #
 # Taken from StackOverflow:
@@ -697,7 +698,7 @@ def getDataFromClusterID(clusterID: int, diskFormatType: int, side: int):
 #
 # Sectors have to be 512Bytes Each and conform to CPM2.2 Standards.
 #
-def getFileInfo(cluster: int, formatType: int, side: int):
+def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
     """Try to get File information from Track and Sector."""
     global DEFAULT_SYSTEM
     global GLOBAL_CORRUPTION_FLAG
@@ -715,10 +716,17 @@ def getFileInfo(cluster: int, formatType: int, side: int):
 
         if FileHeader[:8] != b'PLUS3DOS':
             FileInfoHeader = AmstradFileHeader(FileHeader[:64])
-            fileType = int(FileInfoHeader.FileType)
-            fileStart = FileInfoHeader.FileLoad
-            filelen = FileInfoHeader.LogicalLength
-            fileexec = FileInfoHeader.EntryAddress
+            # Check if Header or Headerless
+            recordFilename = normaliseFilename( FileInfoHeader.Filename )
+
+            if recordFilename == filename:
+                fileType = int(FileInfoHeader.FileType)
+                fileStart = FileInfoHeader.FileLoad
+                filelen = FileInfoHeader.LogicalLength
+                fileexec = FileInfoHeader.EntryAddress
+            else:
+                print("Headerless Record Detected")
+                fileType=-1
 
         else:
             # Experimental, Process +3DOS Info
@@ -761,78 +769,70 @@ def DisplayDirectory(head, detail):
     FileList = []
     FileListExpanded = []
 
-    # Always Side 0
-    for sectorsToSearch in range(4):
+    track, sector = getInitialDirectoryTrackAndSectorForDiskFormat(DEFAULT_DSK_FORMAT)[0:2]
 
-        TrackEntry = f"{track:02d}:{head:01d}"
+    # Four Sectors Make up Directory Entries
+    TrackDataToProcess = getSectorDataFromTrack( track , sector ,head)
+    TrackDataToProcess += getSectorDataFromTrack( track , sector+1 ,head)
+    TrackDataToProcess += getSectorDataFromTrack( track , sector+2 ,head)
+    TrackDataToProcess += getSectorDataFromTrack( track , sector+3 ,head)
 
-        if TrackEntry in DSKDictionary.keys():
-            TrackDict = DSKDictionary[TrackEntry]
+    if len(TrackDataToProcess) < 2048:
+        print(f"Failed to retrieve Directory Structures from Track:{CRED}{track}{CWHITE}, Sector:#{CRED}{sector}{CWHITE}, Head:{CRED}{head}{CWHITE} for 4 sectors.")
+        return
+    
+    # 16 Entries per 512 Byte Sector (512/16) four sectors = 64 entries.
+    for x in range(64):
+        # Get File Record Info
+        DirectoryRecord = CPM22DirectoryEntry(TrackDataToProcess[x*CPM22DirectoryEntry.struct_size:
+                                                            (x*CPM22DirectoryEntry.struct_size)+
+                                                            CPM22DirectoryEntry.struct_size])
 
-            SectorSize = TrackDict.sectorSize * 256
+        # Technically should validate 0-15 as those were valid, some protection
+        # systems would modify this byte to prevent user intervention
+        # Deleted Files would always contain #E5 (Filler Byte)
+        if DirectoryRecord.User != 0xe5 and \
+            DirectoryRecord.Filename[0] > 32:
 
-            offset = GetSectorOffset(TrackDict, sector + sectorsToSearch)
+            filename = normaliseFilename( DirectoryRecord.Filename)
 
-            if offset >= 0 and offset < TrackDict.numberOfSectors:
-                offset = offset * SectorSize
+            #Read-Only Flag Set?
+            if DirectoryRecord.readOnly():
+                filename += "*"
+            else:
+                filename += " "
+            #System/Hidden Flag Set?
 
-                TrackDataToProcess = DSKDataDictionary[TrackEntry]
-                dataToProcess = TrackDataToProcess[offset:offset+SectorSize]
+            if DirectoryRecord.hidden():
+                filename += "+"
+            else:
+                filename += " "
 
-                # 16 Entries per 512 Byte Sector (512/16)
-                for x in range(16):
-                    # Get File Record Info
-                    DirectoryRecord = CPM22DirectoryEntry(dataToProcess[x*CPM22DirectoryEntry.struct_size:
-                                                                        (x*CPM22DirectoryEntry.struct_size)+
-                                                                        CPM22DirectoryEntry.struct_size])
+            # Check First Directory Entry
+            # Extent Byte should be 00
+            #     >0 Related entry to the primary file.
+            if DirectoryRecord.Extent == 0:
+                # Check Valid Name
+                if filename[0] > " ":
+                    entry = f"{DirectoryRecord.User:02d}:"+filename
+                    if entry not in FileList:
+                        # Add File to List 
+                        FileList += [entry]
 
-                    # Technically should validate 0-15 as those were valid, some protection
-                    # systems would modify this byte to prevent user intervention
-                    # Deleted Files would always contain #E5 (Filler Byte)
-                    if DirectoryRecord.User != 0xe5 and \
-                        DirectoryRecord.Filename[0] > 32:
+                        # Get first Cluster ID where File Stored
+                        # This contains the Actual File Header Info 
+                        # Stored at that Track and Sector
+                        # Each Cluster is 1K or 2 Sectors.
 
-                        filename = normaliseFilename( DirectoryRecord.Filename)
+                        cluster = int(DirectoryRecord.Allocation[0])
 
-                        #Read-Only Flag Set?
-                        if DirectoryRecord.readOnly():
-                            filename += "*"
+                        filetype, fileStart, fileLen, fileExec = getFileInfo(cluster, DEFAULT_DSK_FORMAT, head, filename[:12])
+                        if filetype != -1:
+                            fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
                         else:
-                            filename += " "
-                        #System/Hidden Flag Set?
-
-                        if DirectoryRecord.hidden():
-                            filename += "+"
-                        else:
-                            filename += " "
-
-                        # Check First Directory Entry
-                        # Extent Byte should be 00
-                        #     >0 Related entry to the primary file.
-                        if DirectoryRecord.Extent == 0:
-                            # Check Valid Name
-                            if filename[0] > " ":
-                                entry = f"{DirectoryRecord.User:02d}:"+filename
-                                if entry not in FileList:
-                                    # Add File to List 
-                                    FileList += [entry]
-
-                                    # Get first Cluster ID where File Stored
-                                    # This contains the Actual File Header Info 
-                                    # Stored at that Track and Sector
-                                    # Each Cluster is 1K or 2 Sectors.
-
-                                    cluster = int(DirectoryRecord.Allocation[0])
-
-                                    filetype, fileStart, fileLen, fileExec = getFileInfo(cluster, DEFAULT_DSK_FORMAT, head)
-                                    fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \t{filetype}\t#{fileStart:04X} \t#{fileLen:04X} \t#{fileExec:04X}"]
-
-                                    # Add Enhanced File Details to List
-                                    FileListExpanded += fileDetails
-
-        else:
-            print(f"Warning, Track Data Not Found For Track: {track}, Head:{head}")
-            return
+                            fileDetails = [f"{DirectoryRecord.User:02d}:" +filename +f"    \tHeaderless File Detected"]
+                        # Add Enhanced File Details to List
+                        FileListExpanded += fileDetails
 
     # De Dupe and Sort
     FileList = sorted(set(FileList))
@@ -869,7 +869,6 @@ def DisplayDirectory(head, detail):
 #
 def loadDSKToMemory(filename, verbose):
     global DSKDictionary
-    global DSKHEAD
     global DSKDataDictionary
     global DSKSectorDictionary
     global DSKSectorDataDictionary
