@@ -1356,4 +1356,3 @@ if __name__ == "__main__":
 
     if args.directory:
         DisplayDirectory(args.side, args.detail, args.extract)
-
