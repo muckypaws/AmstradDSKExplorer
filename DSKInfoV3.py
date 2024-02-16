@@ -52,7 +52,17 @@
 #                                  Detection isn't 100%, i.e. if the FILENAME matches the
 #                                  the first 12 bytes in a record, it's going to misreport.
 #                                  Also... Changed the order of the Enhanced File Info Output
-
+# V0.05 - 16th February 2024     - Nearly Headless Nick Edition V2
+#                                  Discovered that |REN files will contain different filename
+#                                  to the directory entry to that of the file entry...
+#                                  My method of detection was pants.  After a protracted discussion
+#                                  with my good friend  @DevilMarkus, (I'm like a neanderthal bashing
+#                                  stones compared to his programming prowess...) He pointed out the 
+#                                  error of my ways, that solved that problem!
+#
+#                                  Added functionality to extract Amstrad CPC Files from a DSK 
+#                                  image to your local drive
+#                                  --- STILL UNDER TESTING ---
 '''
     Want to run this tool over multiple files?
     linux use: 
@@ -184,14 +194,14 @@ class StructField:
         self.offset = offset
 
     def __get__(self, instance, cls):
-        if instance is None: 
+        if instance is None:
             return self
         else:
             r = struct.unpack_from(self.format,
                                     instance._buffer, self.offset)
             return r[0] if len(r) == 1 else r
 
-class NestedStruct: 
+class NestedStruct:
     '''
         Descriptor representing a nested structure
     '''
@@ -601,8 +611,8 @@ def normaliseFilename(filename):
     for x in range(len(filename)):
         if filename[x] >= ord(' '):
             cleanName.append(filename[x])
-        else:
-            cleanName.append(0)
+#        else:
+#            cleanName.append(0)
 
     result=andbytes(cleanName,b'\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f')
 
@@ -701,7 +711,31 @@ def getDataFromClusterID(clusterID: int, diskFormatType: int, side: int):
     else:
         print(f"\nUnable to locate Data for Cluster: {clusterID} = Tracks:{Track1}, Sector:#{Sector1:02X}, Track:{Track2}, Sector:#{Sector2:02X}{CWHITE}")
         return b'0'        
-            
+
+#
+# Check the first 66 Bytes of the Header and Checksum 
+#
+def CheckCheckSum(filedata):
+    ''' 
+    Calculate the Header Checksum, if the checksum matches then we have a valid
+    AMSDOS Header, otherwise the file is headerless.
+
+    Testing seems to confirm records are over when terminated with a Soft EOF #1A #00
+    Byte Combination
+    '''
+
+    if len(filedata) < 128:
+        print(f"Invalid Disk Data Sent: expecting at least 128 Bytes, received: {len(filedata)}")
+        return False
+    
+    checksum = 0
+    for i in range(66):
+        checksum += filedata[i]
+
+    filecheck = int.from_bytes(filedata[67:69],'little')
+
+    return checksum == filecheck
+
 #
 # Sectors have to be 512Bytes Each and conform to CPM2.2 Standards.
 #
@@ -726,10 +760,13 @@ def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
 
         if FileHeader[:8] != b'PLUS3DOS':
             FileInfoHeader = AmstradFileHeader(FileHeader[:64])
-            # Check if Header or Headerless
-            recordFilename = normaliseFilename( FileInfoHeader.Filename )
 
-            if recordFilename == filename:
+            # Check if Header or Headerless
+            # Originally I was comparing the File Header with the Directory Header for Filename.
+            # Turns out the |REN command, changes the directory entry but NOT, the file entry name
+            # so need to rethink this....
+
+            if CheckCheckSum(FileHeader):
                 fileType = int(FileInfoHeader.FileType)
                 fileStart = FileInfoHeader.FileLoad
                 filelen = FileInfoHeader.LogicalLength
@@ -756,11 +793,78 @@ def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
 
     return fileType,fileStart, filelen, fileexec
 
+#
+# Extract files from the DSK Level to your OS using the correct lengths.
+#
+def ExtractFiles(fileExtractDetails, side ):
+    '''
+    Extract each of the files in the list to an external file, fileExtractDetails is 
+    Dictionary of FILENAMES and CPMDirectory Structures
+    '''
+    for filename in fileExtractDetails:
+        # Process each file in the list
+        if filename[0] > ' ':
+            print(f" Processing: {CGREEN}{filename}{CWHITE}")
 
-def ExtractFiles(fileList , fileExtractDetails ):
-    print(f"")
-        
+            # Directory Entries may contain more than one entry for each 16kb block of file
+            # it also doesn't have to be in order.
+            AllocationEntries = {}
+            for Entry in fileExtractDetails[filename]:
+                AllocationEntries[Entry.Extent] = Entry.Allocation
 
+            sortedAllocations = dict(sorted(AllocationEntries.items()))
+
+            FileData = b''
+            for block in range(len(sortedAllocations)):
+                for x in range(16):
+                    cluster = sortedAllocations[block][x]
+                    if cluster > 0:
+                        FileData += getDataFromClusterID(cluster, DEFAULT_DSK_FORMAT, side)
+                    else:
+                        break
+
+            if DEFAULT_SYSTEM == CONST_PLUS3DOS:
+                FileInfoHeader = Plus3DOSHeader(FileHeader)
+                filelen = FileInfoHeader.Filelen
+                createDeviceFile(filename, FileData[128:128+filelen])
+            else:
+                # Check if Valid File
+                valid = CheckCheckSum(FileData[:128])
+
+                if(valid):
+                    fileinfo = AmstradFileHeader(FileData[:64])
+                    filelen = fileinfo.LogicalLength
+
+                    createDeviceFile(filename, FileData[128:128+filelen])
+                else:
+                    # Records format so search for the first instance of 
+                    # Soft EOF = #1A byte for correct length
+
+                    filelen = 0
+                    for x in range(len(FileData)):
+                        filelen += 1
+                        if FileData[x] == 26:
+                            break
+                    
+                    createDeviceFile(filename, FileData[:filelen])
+
+
+def createDeviceFile(filename, data):
+    '''
+    Save extracted file information to disk.  Filename and Data required.
+    '''
+    finalName = filename.replace(" ","")
+    finalName = finalName.replace(":","-")
+
+    print(f"Saving File: {finalName} for length: {len(data)}")
+    try:
+        with open(finalName, mode="wb") as file:
+            file.write(data)
+            file.flush()
+            file.close()
+    except Exception as error:
+        print(f"Failed to Write File: {finalName}")
+        print(f"Error: {error}")
 #
 # Attempt to show files stored on DISK
 # Thankfully Directories are on the Same Track and Incremental Sectors
@@ -812,7 +916,12 @@ def DisplayDirectory(head, detail, extract:int ):
 
             filename = normaliseFilename( DirectoryRecord.Filename)
 
-            #FileExtractionList += {filename : DirectoryRecord}
+            key = f"{DirectoryRecord.User:02d}:" + filename
+        
+            if key in FileExtractionList:
+                FileExtractionList[key].append(DirectoryRecord)
+            else:
+                FileExtractionList[key] = [DirectoryRecord]
             #Read-Only Flag Set?
             if DirectoryRecord.readOnly():
                 filename += "*"
@@ -860,7 +969,7 @@ def DisplayDirectory(head, detail, extract:int ):
     FileListExpanded = sorted(set(FileListExpanded))
     
     if extract:
-        ExtractFiles(FileList, FileExtractionList)
+        ExtractFiles(FileExtractionList, head)
 
     print()
     print("*"*80)
@@ -1187,7 +1296,7 @@ if __name__ == "__main__":
                 help="Number of Sides for the Disk Image (1 or 2), default = 1",
                 type=int, default=1)
     parser.add_argument("-ex","--extract",
-                help="Number of Sides for the Disk Image (1 or 2), default = 1",
+                help="Number of Sides for the Disk Image (1 or 2), default = 1, can only be used with the -dir option",
                 action="store_true",default=False)
     
     args = parser.parse_args()
@@ -1247,3 +1356,4 @@ if __name__ == "__main__":
 
     if args.directory:
         DisplayDirectory(args.side, args.detail, args.extract)
+
