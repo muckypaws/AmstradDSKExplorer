@@ -608,11 +608,9 @@ def normaliseFilename(filename):
     # Meh...  Remove control characters from Disks with filenames
     #         That would display a screen message instead of files.
     cleanName = bytearray()
-    for x in range(len(filename)):
-        if filename[x] >= ord(' '):
-            cleanName.append(filename[x])
-#        else:
-#            cleanName.append(0)
+    for count, x in enumerate(filename):
+        if x >= ord(' '):
+            cleanName.append(x)
 
     result=andbytes(cleanName,b'\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f\x7f')
 
@@ -824,7 +822,7 @@ def ExtractFiles(fileExtractDetails, side ):
                         break
 
             if DEFAULT_SYSTEM == CONST_PLUS3DOS:
-                FileInfoHeader = Plus3DOSHeader(FileHeader)
+                FileInfoHeader = Plus3DOSHeader(FileData[:128])
                 filelen = FileInfoHeader.Filelen
                 createDeviceFile(filename, FileData[128:128+filelen])
             else:
@@ -841,30 +839,60 @@ def ExtractFiles(fileExtractDetails, side ):
                     # Soft EOF = #1A byte for correct length
 
                     filelen = 0
-                    for x in range(len(FileData)):
-                        filelen += 1
-                        if FileData[x] == 26:
+
+                    for filelen, z in enumerate(FileData):
+                        if z == 26:
+                            filelen += 1
                             break
                     
                     createDeviceFile(filename, FileData[:filelen])
 
+#
+#
+#
+def remove_non_ascii(text):
+    '''Remove None ASCII Charactets from Filename'''
+    #return ''.join(filter(str.isalnum, text))
+    clean=''
+    for x, ch in enumerate(text):
+        if ch == ' ' or ch == ':' or (ch > ',' and ch < ';') or (ch >'@' and ch < '['):
+            clean = clean + text[x]
 
+    return clean
+#
+# Create a File to your Device as Native OS File.
+#
 def createDeviceFile(filename, data):
     '''
     Save extracted file information to disk.  Filename and Data required.
     '''
+
+    if not len(data):
+        print(f"No data found for file: {filename}, nothing to write")
+        return
+    
     finalName = filename.replace(" ","")
     finalName = finalName.replace(":","-")
+    finalName = remove_non_ascii(finalName)
 
-    print(f"Saving File: {finalName} for length: {len(data)}")
-    try:
-        with open(finalName, mode="wb") as file:
-            file.write(data)
-            file.flush()
-            file.close()
-    except Exception as error:
-        print(f"Failed to Write File: {finalName}")
-        print(f"Error: {error}")
+    # Don't think this will trigger as there will be a USER and Colon at a minimum.
+    if not len(filename):
+        print(f"Santised filename unavailable for writing, original name: {filename}")
+        return
+
+    if len(filename) and len(data):
+        print(f"Saving File: {finalName} for length: {len(data)}")
+        try:
+            with open(finalName, mode="wb") as file:
+                file.write(data)
+                file.flush()
+                file.close()
+        except Exception as error:
+            print(f"Failed to Write File: {finalName}")
+            print(f"Error: {error}")
+    else:
+        print(f"Something went horrible wrong to get here.")
+
 #
 # Attempt to show files stored on DISK
 # Thankfully Directories are on the Same Track and Incremental Sectors
@@ -1064,13 +1092,13 @@ def loadDSKToMemory(filename, verbose):
                             # Check the track is formatted with data.
 
                             # Some Legacy Files Report 40 Tracks when only the relevant ones
-                            # Were encoded... So we need to check... 
+                            # Were encoded... So we need to check...
                             bytesRemaining = file.tell()
 
                             if tracksize > 0 and (bytesRemaining+tracksize)<=totalFileSize:
                                 trackString = f"{track:02d}:{trackside:01d}"
                                 DSKDictionary[trackString] = TrackInformationBlock(file.read(256))
-                                DSKDataDictionary[trackString] = (file.read(tracksize-256))
+                                DSKDataDictionary[trackString] = file.read(tracksize-256)
 
                                 # Check Track-Info is Correctly Set
                                 # Some Legacy Disks appear to be corrupt
