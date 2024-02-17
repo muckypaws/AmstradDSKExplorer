@@ -59,6 +59,7 @@ Commands :-
     -ft             = Format Type, 0 = DATA, 1 = VENDOR, 2 = IBM, 3 = ZX Spectrum +3 IBM
     -ftracks        = Number of Tracks, between 1 and 82, default 42
     -fsides         = Number of Sides, 1 or 2, default 1
+    -ex             = Extract all valid files from the DSK Image to Disk
 
 
 ## python3 DSKUtilV3 -dh filename.dsk
@@ -277,3 +278,40 @@ Think you get the idea :)
     Disk Format: DATA
      Disk Sides: 2
          Tracks: 82
+
+## python3 DSKUtilV3 -dir -ex filename.dsk
+
+**Will examine the directory entries available in the supplied DSK image and extract them**
+
+As simple as that really, it will extract as many files as the tools finds valid to the current directory.
+Not sure how this will help you outside of an emulated environment, but you now have that feature.
+Some experimental support for ZX Spectrum PLUS3DOS Disks too.
+
+    --------------------------------------------------------------------------------
+    DSK File Info Utility... www.muckypaws.com
+
+    Program Run: 2024-02-17 19:31:59
+    --------------------------------------------------------------------------------
+
+    Processing:  ./TestDisks/ZXSpec007.dsk 
+
+
+    Disk Format Type: PLUS3DOS, appears to be Valid.
+
+    Processing: 00:DISK    .   
+    Saving File: 00-DISK. for length: 122
+    Processing: 00:SCR     .   
+    Saving File: 00-SCR. for length: 6912
+    Processing: 00:C128    .   
+    Saving File: 00-C128. for length: 40960
+
+    ********************************************************************************
+    Total Files Found: 3
+
+    *** PLUS3DOS File System Detected ***
+
+    U:Filename    RH       Type    Start   Param2  Length
+    -----------------------------------------------------
+    00:C128    .   *+       3       #6000   #8000   #A000
+    00:DISK    .   *        0       #000A   #007A   #007A
+    00:SCR     .   *+       3       #8000   #8000   #1B00
