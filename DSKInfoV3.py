@@ -881,7 +881,7 @@ def createDeviceFile(filename, data):
         return
 
     if len(filename) and len(data):
-        print(f"Saving File: {finalName} for length: {len(data)}")
+        print(f"Saving File: {CBLUE}{finalName}{CWHITE} \tfor length: {CBLUE}{len(data)}{CWHITE}")
         try:
             with open(finalName, mode="wb") as file:
                 file.write(data)
