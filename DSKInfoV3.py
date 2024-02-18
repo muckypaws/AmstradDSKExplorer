@@ -1128,7 +1128,6 @@ def loadDSKToMemory(filename, verbose):
                                             DEFAULT_DSK_FORMAT |= CONST_IBM_BIT
                                         if sectorData.SectorID > 0x0 and sectorData.SectorID < 0x0a:
                                             DEFAULT_DSK_FORMAT |= CONST_PLUS3DOS_BIT
-
                                         x += 8
                             else:
                                 if tracksize > 0:
@@ -1136,7 +1135,6 @@ def loadDSKToMemory(filename, verbose):
                                         GLOBAL_CORRUPTION_FLAG = 1
                                         print(f"{CRED}Possible Corruption, Insufficient data from Track: {track}{CWHITE}")
                                         print(f"Disk Header set to: {CRED}{DSKDictionary['DiskHeader'].numberOfTracks}{CWHITE}")
-
                 # Set Disk Type Flags
                 if DEFAULT_DSK_FORMAT == CONST_DATA_BIT:
                     DEFAULT_DSK_TYPE = "DATA"
@@ -1172,8 +1170,6 @@ def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
     #    return
 
     # Used to create the initial Struct
-    fakeHeader = b'\x00' * 256
-
     error = 0
 
     if sides < 1 or sides > 2:
@@ -1222,14 +1218,14 @@ def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
 
     DiskHeader = DSKHeader(b'\x00' * DSKHeader.struct_size)
     DiskHeader.defaults(tracks,sides,TotalSectors)
-    
+
     TrackInfo = TrackInformationBlock(b'\0'*TrackInformationBlock.struct_size)
     TrackInfo.defaults(0,0,TotalSectors)
 
     # Interleved Sectors List
     try:
         with open(FilenameToWrite, mode="wb") as file:
-            
+
             DiskHeader.write(file)
 
             # Now write out Blank Track Information
@@ -1254,7 +1250,7 @@ def CreateBlankDSKFile(FilenameToWrite, tracks: int, sides :int, format: int):
                     TrackInfo.sectorTable = finalSectorTable[:232]
 
                     TrackInfo.write(file)
-                    
+
                     # Write the Blank Sectors filled with filler byte.
 
                     file.write(TrackInfo.filler * TotalSectors * 512)
@@ -1326,7 +1322,7 @@ if __name__ == "__main__":
     parser.add_argument("-ex","--extract",
                 help="Number of Sides for the Disk Image (1 or 2), default = 1, can only be used with the -dir option",
                 action="store_true",default=False)
-    
+
     args = parser.parse_args()
 
     DEFAULT_START_TRACK = args.trackStart
