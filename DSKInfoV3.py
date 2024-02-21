@@ -540,8 +540,11 @@ def DisplayDiskHeader(verbose):
     '''
     global DSKDictionary
 
-    print(f"          Header: {DSKDictionary['DiskHeader'].header.decode()}")
-    print(f"    Creator Name: {DSKDictionary['DiskHeader'].creator.decode()}")
+    headerName = DSKDictionary['DiskHeader'].header.decode("utf-8").replace("\r","\\r").replace("\n","\\n")
+    creatorName = DSKDictionary['DiskHeader'].creator.decode("utf-8").replace("\r","\\r").replace("\n","\\n")
+
+    print(f"          Header: {headerName}")
+    print(f"    Creator Name: {creatorName}")
     print(f"Number of Tracks: {DSKDictionary['DiskHeader'].numberOfTracks}")
     print(f" Number of Sides: {DSKDictionary['DiskHeader'].numberOfSides}")
 
@@ -713,7 +716,7 @@ def getDataFromClusterID(clusterID: int, diskFormatType: int, side: int):
 #
 # Check the first 66 Bytes of the Header and Checksum 
 #
-def CheckCheckSum(filedata):
+def CheckCheckSum(filedata, type):
     ''' 
     Calculate the Header Checksum, if the checksum matches then we have a valid
     AMSDOS Header, otherwise the file is headerless.
@@ -727,10 +730,21 @@ def CheckCheckSum(filedata):
         return False
     
     checksum = 0
-    for i in range(66):
-        checksum += filedata[i]
+    filecheck = 0
 
-    filecheck = int.from_bytes(filedata[67:69],'little')
+    if type == CONST_AMSTRAD:
+        for i in range(66):
+            checksum += filedata[i]
+
+        filecheck = int.from_bytes(filedata[67:69],'little')
+
+    if type == CONST_PLUS3DOS:
+        for i in range(127):
+            checksum += filedata[i]
+
+        # Only need the Lower Byte, could MOD 256 but AND is more efficient
+        filecheck = filedata[127]
+        checksum &= 255
 
     return checksum == filecheck
 
@@ -764,7 +778,7 @@ def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
             # Turns out the |REN command, changes the directory entry but NOT, the file entry name
             # so need to rethink this....
 
-            if CheckCheckSum(FileHeader):
+            if CheckCheckSum(FileHeader, CONST_AMSTRAD):
                 fileType = int(FileInfoHeader.FileType)
                 fileStart = FileInfoHeader.FileLoad
                 filelen = FileInfoHeader.LogicalLength
@@ -777,11 +791,15 @@ def getFileInfo(cluster: int, formatType: int, side: int, filename: str):
             # Reference : https://area51.dev/sinclair/spectrum/3dos/fileheader/
             DEFAULT_SYSTEM = CONST_PLUS3DOS
 
-            FileInfoHeader = Plus3DOSHeader(FileHeader)
-            fileType = FileInfoHeader.FileType
-            filelen = FileInfoHeader.Filelen
-            fileStart = FileInfoHeader.Param1
-            fileexec = FileInfoHeader.Param2
+            if CheckCheckSum(FileHeader,CONST_PLUS3DOS):
+                FileInfoHeader = Plus3DOSHeader(FileHeader)
+                fileType = FileInfoHeader.FileType
+                filelen = FileInfoHeader.Filelen
+                fileStart = FileInfoHeader.Param1
+                fileexec = FileInfoHeader.Param2
+            else:
+                print("Fileheader Checksum Failure: ")
+                print("Record file support not yet implemented")
 
     else:
         if GLOBAL_CORRUPTION_FLAG == 0:
@@ -827,7 +845,7 @@ def ExtractFiles(fileExtractDetails, side ):
                 createDeviceFile(filename, FileData[128:128+filelen])
             else:
                 # Check if Valid File
-                valid = CheckCheckSum(FileData[:128])
+                valid = CheckCheckSum(FileData[:128], CONST_AMSTRAD)
 
                 if(valid):
                     fileinfo = AmstradFileHeader(FileData[:64])
@@ -871,8 +889,7 @@ def createDeviceFile(filename, data):
         print(f"No data found for file: {filename}, nothing to write")
         return
     
-    finalName = filename.replace(" ","")
-    finalName = finalName.replace(":","-")
+    finalName = filename.replace(" ","").replace(":","-")
     finalName = remove_non_ascii(finalName)
 
     # Don't think this will trigger as there will be a USER and Colon at a minimum.
