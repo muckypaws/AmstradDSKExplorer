@@ -14,7 +14,7 @@
             //"args": ["-dir","-d","./TestDisks/Amstrad Compilation Disk Spectrum Plus 3 - Side A.dsk"],
             //"args": ["-dir","-d","-v","./testFormatDisk.dsk"],
             //"args": ["-f","--formatType","0","--formatTracks","30","--formatSides","1","./testFormatDiskDATA.dsk"],
-            "args": ["-dir","-ex","./TestDisks/DizzyHackTutorial.dsk"],
+            "args": ["-dir","-d","-ds","-te","0","./TestDisks/Sector48Test2.dsk"],
             
         }
     ]

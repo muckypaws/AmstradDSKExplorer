@@ -67,7 +67,7 @@
     Want to run this tool over multiple files?
     linux use: 
         #!/bin/bash
-        find . -name "*.dsk" -type f  -exec python3 DSKInfoV3.py -dir -d  {} \; > FileInfoList.txt
+        find ./AllJason -name "*.dsk" -type f  -exec python3 DSKInfoV3.py -dir -d  {} \; > FileInfoList.txt
 '''
 # pylint: disable=line-too-long
 
@@ -831,7 +831,8 @@ def ExtractFiles(fileExtractDetails, side ):
             sortedAllocations = dict(sorted(AllocationEntries.items()))
 
             FileData = b''
-            for block in range(len(sortedAllocations)):
+            #for block in range(len(sortedAllocations)):
+            for block in sortedAllocations:
                 for x in range(16):
                     cluster = sortedAllocations[block][x]
                     if cluster > 0:
