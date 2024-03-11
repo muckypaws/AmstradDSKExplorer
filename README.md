@@ -60,6 +60,7 @@ Commands :-
     -ftracks        = Number of Tracks, between 1 and 82, default 42
     -fsides         = Number of Sides, 1 or 2, default 1
     -ex             = Extract all valid files from the DSK Image to Disk
+    -cpm            = Extract Files as CP/M Format (Based on number of records * 128 bytes)
 
 
 ## python3 DSKUtilV3 -dh filename.dsk
@@ -315,3 +316,37 @@ Some experimental support for ZX Spectrum PLUS3DOS Disks too.
     00:C128    .   *+       3       #6000   #8000   #A000
     00:DISK    .   *        0       #000A   #007A   #007A
     00:SCR     .   *+       3       #8000   #8000   #1B00
+
+
+## python3 DSKUtilV3 -dir -ex -cpm filename.dsk
+
+**Will attempt to extract the files as CP/M Programs (No File Header)**
+
+CP/M Programs don't include include the additional header that AMSDOS does,
+therefore we don't know the true start/length and execution address.  Although
+programs like GENCOM will add this information to a binary to make it executable
+we don't know for certainty the true length of the file without knowing more
+about the different file extensions etc.
+
+So we look at the number of records on each Directory Entry Extent and total these
+up, multiple by 128 (Record size) and write that to disk.
+
+Example: 
+
+--------------------------------------------------------------------------------
+DSK File Info Utility... www.muckypaws.com
+
+Program Run: 2024-03-11 18:55:35
+--------------------------------------------------------------------------------
+
+Processing:  ./FromCommunity/Nevada-Pascal-41-Disks-Amstrad-CPC/PascalFaceB.dsk 
+
+
+Disk Format Type: DATA, appears to be Valid.
+
+ Processing: 00:ARCTAN  .PAS
+Saving File: 00-ARCTAN.PAS          for length: 2048
+ Processing: 00:CONVERTM.INT
+Saving File: 00-CONVERTM.INT        for length: 3456
+ Processing: 00:COPYRITE.   
+Saving File: 00-COPYRITE.           for length: 384
