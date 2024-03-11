@@ -14,8 +14,8 @@
             //"args": ["-dir","-d","./TestDisks/Amstrad Compilation Disk Spectrum Plus 3 - Side A.dsk"],
             //"args": ["-dir","-d","-v","./testFormatDisk.dsk"],
             //"args": ["-f","--formatType","0","--formatTracks","30","--formatSides","1","./testFormatDiskDATA.dsk"],
-            //"args": ["-dir","-d","-cpm","-ex","./FromCommunity/Nevada-Pascal-41-Disks-Amstrad-CPC/PascalFaceA.dsk"],
-            "args": ["-dir","-d","-ex","./TestDisks/BigFiles.dsk"],
+            "args": ["-dir","-d","-cpm","-ex","./FromCommunity/Nevada-Pascal-41-Disks-Amstrad-CPC/PascalFaceA.dsk"],
+            //"args": ["-dir","-d","-ex","./TestDisks/BigFiles.dsk"],
             
         }
     ]

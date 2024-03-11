@@ -333,20 +333,20 @@ up, multiple by 128 (Record size) and write that to disk.
 
 Example: 
 
---------------------------------------------------------------------------------
-DSK File Info Utility... www.muckypaws.com
+    --------------------------------------------------------------------------------
+    DSK File Info Utility... www.muckypaws.com
 
-Program Run: 2024-03-11 18:55:35
---------------------------------------------------------------------------------
+    Program Run: 2024-03-11 18:55:35
+    --------------------------------------------------------------------------------
 
-Processing:  ./FromCommunity/Nevada-Pascal-41-Disks-Amstrad-CPC/PascalFaceB.dsk 
+    Processing:  ./FromCommunity/Nevada-Pascal-41-Disks-Amstrad-CPC/PascalFaceB.dsk 
 
 
-Disk Format Type: DATA, appears to be Valid.
+    Disk Format Type: DATA, appears to be Valid.
 
- Processing: 00:ARCTAN  .PAS
-Saving File: 00-ARCTAN.PAS          for length: 2048
- Processing: 00:CONVERTM.INT
-Saving File: 00-CONVERTM.INT        for length: 3456
- Processing: 00:COPYRITE.   
-Saving File: 00-COPYRITE.           for length: 384
+    Processing: 00:ARCTAN  .PAS
+    Saving File: 00-ARCTAN.PAS          for length: 2048
+    Processing: 00:CONVERTM.INT
+    Saving File: 00-CONVERTM.INT        for length: 3456
+    Processing: 00:COPYRITE.   
+    Saving File: 00-COPYRITE.           for length: 384
