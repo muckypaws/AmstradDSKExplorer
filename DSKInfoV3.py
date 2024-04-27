@@ -168,28 +168,22 @@ class SizedRecord:
         self._buffer = memoryview(bytedata)
 
     @classmethod
-    def from_file(cls, f, size_fmt, includes_size=True): 
+    def from_file(cls, f, size_fmt, includes_size=True):
         sz_nbytes = struct.calcsize(size_fmt)
         sz_bytes = f.read(sz_nbytes)
         sz, = struct.unpack(size_fmt, sz_bytes)
-        buf = f.read(sz - includes_size * sz_nbytes) 
-        return cls(buf)
-
-    def from_buffer(cls, source, offset: int = ...): 
-        sz_nbytes = struct.calcsize(source)
-        sz, = struct.unpack(source, sz_nbytes)
-        buf = sz - includes_size * sz_nbytes
+        buf = f.read(sz - includes_size * sz_nbytes)
         return cls(buf)
 
     def iter_as(self, code):
         if isinstance(code, str):
             s = struct.Struct(code)
             for off in range(0, len(self._buffer), s.size):
-                yield s.unpack_from(self._buffer, off) 
+                yield s.unpack_from(self._buffer, off)
         elif isinstance(code, StructureMeta):
             size = code.struct_size
             for off in range(0, len(self._buffer), size):
-                data = self._buffer[off:off+size] 
+                data = self._buffer[off:off+size]
                 yield code(data)
 
 class StructField:
@@ -872,7 +866,7 @@ def ExtractFiles(fileExtractDetails, side ):
 
                         createDeviceFile(filename, FileData[128:128+filelen])
                     else:
-                        # Records format so search for the first instance of 
+                        # Records format so search for the first instance of
                         # Soft EOF = #1A byte for correct length
 
                         filelen = 0
@@ -1344,7 +1338,7 @@ if __name__ == "__main__":
     parser.add_argument("-te","--trackEnd", help="End Track to View", type=int, default=42)
 
     parser.add_argument("-dh","--displayHeader",
-                        help="Display Disk Header Information", 
+                        help="Display Disk Header Information",
                         action="store_true",default=False)
 
     parser.add_argument("-ds","--displaySector",
@@ -1360,11 +1354,11 @@ if __name__ == "__main__":
                         type=int, default=0)
 
     parser.add_argument("-v","--verbose",
-                        help="Show Startup Parameters", 
+                        help="Show Startup Parameters",
                         action="store_true",default=False)
 
     parser.add_argument("-d","--detail",
-                        help="Show File Information", 
+                        help="Show File Information",
                         action="store_true",default=False)
 
     # First Mutually Excluded Group of Flags
@@ -1386,7 +1380,7 @@ if __name__ == "__main__":
     parser.add_argument("-ex","--extract",
                 help="Number of Sides for the Disk Image (1 or 2), default = 1, can only be used with the -dir option",
                 action="store_true",default=False)
-    
+
     parser.add_argument("-cpm","--cpm",
                 help="Treat All files for extraction as CPM binaries",
                 action="store_true",default=False)
@@ -1421,7 +1415,7 @@ if __name__ == "__main__":
     # Check File Size is multiples of 256 bytes
     size = os.path.getsize(args.filename)
     if size % 256:
-        print(f"\n\n***Not a valid DSK File: Must be multiples of 256 Bytes: Size = {size}***")
+        print(f"\n\n*** Warning might not be valid DSK File: Must be multiples of 256 Bytes: Size = {size}, Ignore if disk Created with SAMDisk. ***")
 
     # Situations for Corrupt DSK files that just contain a header, nothing more
     # I.e. totally unformatted disks
