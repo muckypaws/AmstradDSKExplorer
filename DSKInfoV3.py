@@ -57,10 +57,10 @@
 #                                  to the directory entry to that of the file entry...
 #                                  My method of detection was pants.  After a protracted discussion
 #                                  with my good friend  @DevilMarkus, (I'm like a neanderthal bashing
-#                                  stones compared to his programming prowess...) He pointed out the 
+#                                  stones compared to his programming prowess...) He pointed out the
 #                                  error of my ways, that solved that problem!
 #
-#                                  Added functionality to extract Amstrad CPC Files from a DSK 
+#                                  Added functionality to extract Amstrad CPC Files from a DSK
 #                                  image to your local drive
 #                                  --- STILL UNDER TESTING ---
 # V0.05 - 10th March 2024        - Old School Classics Edition
@@ -68,7 +68,15 @@
 #                                  Temporary workaround to extract the full binary to cluster size
 #                                  due to differing header information based on CP/M file type.
 #                                  added the -cpm command line option, required to extract CPM Files.
-'''
+# V0.5a - 8th October 2025       - Don't you want me - Human League Edition
+#                                  Richard Deane Identified later versions of Python 3.13.5 don't play
+#                                  well with multistring comments where a backslash is concerned.
+#                                  a warning is issued "SyntaxWarning: invalid escape sequence '\;'"
+#                                  since syntax validation is tightend this is a warning and doesn't 
+#                                  affect the operation of the program.  Although escaping the char
+#                                  will result in incorrect information to the end use, Python allows
+#                                  the r prefix to multistring comments to suppress it.
+r'''
     Want to run this tool over multiple files?
     linux use: 
         #!/bin/bash
